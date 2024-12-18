@@ -11,7 +11,7 @@
 
 cparse is an LR(1) parser generator for C.
 
-cparse uses [`clex`](https://github.com/jafarlihi/clex) lexer generator for syntactic analysis purposes.
+cparse uses [`clex`](https://github.com/jafarlihi/clex) lexer generator for lexical analysis purposes.
 
 Note that LR(1) parsers are memory-intensive (and there are memory leaks...), so something like full C grammar can require up to 4GBs of free RAM.
 
