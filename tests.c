@@ -29,7 +29,7 @@ char *grammar3StringResult = "Start nonterminal: P\n"
 
 int main(int argc, char *argv[]) {
   char grammarString[] = "S -> A A\nA -> a A | b\nB -> #";
-  Grammar *grammar1 = parseGrammar(grammarString);
+  Grammar *grammar1 = cparseGrammar(grammarString);
   printf("%s\n", getGrammarAsString(grammar1));
   assert(strcmp(getGrammarAsString(grammar1), grammar1StringResult) == 0);
 
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     "Operators -> #\n"
     "Operator -> read ( Variable )\n"
     "Operator -> write ( Variable )\n";
-  Grammar *grammar2 = parseGrammar(grammarString2);
+  Grammar *grammar2 = cparseGrammar(grammarString2);
   printf("%s\n", getGrammarAsString(grammar2));
   assert(strcmp(getGrammarAsString(grammar2), grammar2StringResult) == 0);
 
@@ -54,23 +54,23 @@ int main(int argc, char *argv[]) {
     "E -> T\n"
     "T -> id ( E )\n"
     "T -> id\n";
-  Grammar *grammar3 = parseGrammar(grammarString3);
+  Grammar *grammar3 = cparseGrammar(grammarString3);
   printf("%s\n", getGrammarAsString(grammar3));
   assert(strcmp(getGrammarAsString(grammar3), grammar3StringResult) == 0);
 
   printf("\n");
 
-  LR1Parser *parser1 = createLR1Parser(grammar1, NULL);
+  LR1Parser *parser1 = cparseCreateLR1Parser(grammar1, NULL);
   printf("%s\n", getLR1ParserAsString(parser1));
 
   printf("\n");
 
-  LR1Parser *parser2 = createLR1Parser(grammar2, NULL);
+  LR1Parser *parser2 = cparseCreateLR1Parser(grammar2, NULL);
   printf("%s\n", getLR1ParserAsString(parser2));
 
   printf("\n");
 
-  LR1Parser *parser3 = createLR1Parser(grammar3, NULL);
+  LR1Parser *parser3 = cparseCreateLR1Parser(grammar3, NULL);
   printf("%s\n", getLR1ParserAsString(parser3));
 }
 
@@ -136,14 +136,14 @@ int main(int argc, char *argv[]) {
   clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
 
   char grammarString[] = "S -> A IDENTIFIER SEMICOL\nA -> RETURN\n";
-  Grammar *grammar = parseGrammar(grammarString);
+  Grammar *grammar = cparseGrammar(grammarString);
   printf("%s\n", getGrammarAsString(grammar));
-  LR1Parser *parser = createLR1Parser(grammar, tokenKindStr);
+  LR1Parser *parser = cparseCreateLR1Parser(grammar, tokenKindStr);
   printf("%s\n", getLR1ParserAsString(parser));
 
-  printf("%d\n", accept(parser, "return id1;"));
+  printf("%d\n", cparseAccept(parser, "return id1;"));
 
-  ParseTreeNode *node = parse(parser, "return id1;");
+  ParseTreeNode *node = cparse(parser, "return id1;");
   printf("%s\n", getParseTreeAsString(node));
 }
 
@@ -507,15 +507,15 @@ int main(int argc, char *argv[]) {
 "function_definition -> declaration_specifiers declarator declaration_list compound_statement | declaration_specifiers declarator compound_statement\n"
 "declaration_list -> declaration | declaration_list declaration\n";
 
-  Grammar *grammar = parseGrammar(grammarString);
+  Grammar *grammar = cparseGrammar(grammarString);
   printf("%s\n", getGrammarAsString(grammar));
 
-  LR1Parser *parser = createLR1Parser(grammar, tokenKindStr);
+  LR1Parser *parser = cparseCreateLR1Parser(grammar, tokenKindStr);
   printf("%s\n", getLR1ParserAsString(parser));
 
-  printf("%d\n", accept(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}"));
+  printf("%d\n", cparseAccept(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}"));
 
-  ParseTreeNode *node = parse(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}");
+  ParseTreeNode *node = cparse(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}");
   printf("%s\n", getParseTreeAsString(node));
 }
 

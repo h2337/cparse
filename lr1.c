@@ -1,6 +1,5 @@
 #include "cparse.h"
 #include "lr1.h"
-#include "grammar.h"
 #include "util.h"
 #include "clex/clex.h"
 #include <stdlib.h>
@@ -348,7 +347,7 @@ void createActionTable(LR1Parser *parser, Grammar *grammar) {
   }
 }
 
-LR1Parser *createLR1Parser(Grammar *grammar, const char * const *tokenKindStr) {
+LR1Parser *cparseCreateLR1Parser(Grammar *grammar, const char * const *tokenKindStr) {
   LR1Parser *parser = makeParser();
   parser->grammar = grammar;
   parser->tokenKindStr = tokenKindStr;
@@ -456,7 +455,7 @@ char *intToString(int number) {
   return numberArray;
 }
 
-bool accept(LR1Parser *parser, char *input) {
+bool cparseAccept(LR1Parser *parser, char *input) {
   clexInit(input);
   Token token;
   char **stack = calloc(ARRAY_CAPACITY, sizeof(char *));
@@ -551,7 +550,7 @@ Token popToken(Token *stack) {
   return (Token){ .kind = 0, .lexeme = NULL };
 }
 
-ParseTreeNode *parse(LR1Parser *parser, char *input) {
+ParseTreeNode *cparse(LR1Parser *parser, char *input) {
   clexInit(input);
   Token token;
   char **stack = calloc(ARRAY_CAPACITY, sizeof(char *));
