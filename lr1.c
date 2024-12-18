@@ -333,11 +333,11 @@ void createActionTable(LR1Parser *parser, Grammar *grammar) {
               int index = getRuleIndex(grammar, item->left, item->right);
               for (int x = 0; x < ARRAY_CAPACITY; x++) {
                 if (item->lookaheads[x]) {
-                  //if (isTerminalInActionTable(parser->actionTable[i], item->lookaheads[x])) {
-                    //fprintf(stderr, "Conflict found\n");
-                  //} else {
+                  if (isTerminalInActionTable(parser->actionTable[i], item->lookaheads[x])) {
+                    fprintf(stderr, "Conflict found\n");
+                  } else {
                     addActionNode(parser->actionTable[i], makeActionNode(item->lookaheads[x], REDUCE, index));
-                  //}
+                  }
                 }
               }
             }
