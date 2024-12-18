@@ -8,6 +8,8 @@ int main(int argc, char *argv[]) {
   Grammar *grammar = parseGrammar(grammarString);
   printf("%s\n", getGrammarAsString(grammar));
 
+  printf("\n");
+
   char grammarString2[] = "Program -> var Variables begin Operators end\n"
                           "Variables -> Variable ; Variables\n"
                           "Variables -> #\n"
