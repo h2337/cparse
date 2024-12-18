@@ -60,9 +60,11 @@ ActionNode *makeActionNode(char *terminal, ActionType type, int operand) {
 }
 
 bool isNonTerminal(Grammar *grammar, char *value) {
-  for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (grammar->nonterminals[i] && strcmp(grammar->nonterminals[i], value) == 0)
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (!grammar->nonterminals[i]) return false;
+    if (strcmp(grammar->nonterminals[i], value) == 0)
       return true;
+  }
   return false;
 }
 
@@ -78,11 +80,11 @@ char **computeFirstByIndex(Grammar *grammar, char **strings, int index) {
     char **source = findValuesInSet(grammar->first, strings[index]);
     if (source)
       addAllCharPtrToArrayUnique(result, source);
-  } if (inArray(result, "#"))
-    if (index != getValuesLength(strings) - 1) {
-      removeCharPtrFromArray(result, "#");
-      addAllCharPtrToArrayUnique(result, computeFirstByIndex(grammar, strings, index + 1));
-    }
+  }
+  if (inArray(result, "#") && index != getValuesLength(strings) - 1) {
+    removeCharPtrFromArray(result, "#");
+    addAllCharPtrToArrayUnique(result, computeFirstByIndex(grammar, strings, index + 1));
+  }
   return result;
 }
 
@@ -125,54 +127,54 @@ void closure(Grammar *grammar, LR1Item **items) {
   do {
     changed = false;
     for (int i = 0; i < ARRAY_CAPACITY; i++) {
-      if (items[i]) {
-        if (items[i]->dot != getValuesLength(items[i]->right) && isNonTerminal(grammar, items[i]->right[items[i]->dot])) {
-          char **lookaheads = calloc(ARRAY_CAPACITY, sizeof(char *));
-          if (items[i]->dot == getValuesLength(items[i]->right) - 1) {
-            addAllCharPtrToArrayUnique(lookaheads, items[i]->lookaheads);
-          } else {
-            char **firstSet = computeFirstByIndex(grammar, items[i]->right, items[i]->dot + 1);
-            if (inArray(firstSet, "#")) {
-              removeCharPtrFromArray(firstSet, "#");
-              addAllCharPtrToArrayUnique(firstSet, items[i]->lookaheads);
-            }
-            addAllCharPtrToArrayUnique(lookaheads, firstSet);
-            free(firstSet);
+      if (!items[i]) break;
+      if (items[i]->dot != getValuesLength(items[i]->right) && isNonTerminal(grammar, items[i]->right[items[i]->dot])) {
+        char **lookaheads = calloc(ARRAY_CAPACITY, sizeof(char *));
+        if (items[i]->dot == getValuesLength(items[i]->right) - 1) {
+          addAllCharPtrToArrayUnique(lookaheads, items[i]->lookaheads);
+        } else {
+          char **firstSet = computeFirstByIndex(grammar, items[i]->right, items[i]->dot + 1);
+          if (inArray(firstSet, "#")) {
+            removeCharPtrFromArray(firstSet, "#");
+            addAllCharPtrToArrayUnique(firstSet, items[i]->lookaheads);
           }
-          for (int j = 0; j < ARRAY_CAPACITY; j++) {
-            if (grammar->rules[j] && strcmp(grammar->rules[j]->left, items[i]->right[items[i]->dot]) == 0) {
-              char **right = grammar->rules[j]->right;
-              int finish = 0;
-              if (getValuesLength(right) == 1 && strcmp(right[0], "#") == 0)
-                finish = 1;
-              char **newLookaheads = copyCharArray(lookaheads);
-              LR1Item *newItem = makeLR1Item(grammar->rules[j]->left, right, finish, newLookaheads);
-              bool found = false;
-              for (int x = 0; x < ARRAY_CAPACITY; x++) {
-                if (items[x]) {
-                  if (equalLR0(items[x], newItem)) {
-                    if (!arrayContainsAll(items[x]->lookaheads, newLookaheads)) {
-                      addAllCharPtrToArrayUnique(items[x]->lookaheads, newLookaheads);
-                      changed = true;
-                    }
-                    found = true;
-                    break;
+          addAllCharPtrToArrayUnique(lookaheads, firstSet);
+          free(firstSet);
+        }
+        for (int j = 0; j < ARRAY_CAPACITY; j++) {
+          if (!grammar->rules[j]) break;
+          if (strcmp(grammar->rules[j]->left, items[i]->right[items[i]->dot]) == 0) {
+            char **right = grammar->rules[j]->right;
+            int finish = 0;
+            if (getValuesLength(right) == 1 && strcmp(right[0], "#") == 0)
+              finish = 1;
+            char **newLookaheads = copyCharArray(lookaheads);
+            LR1Item *newItem = makeLR1Item(grammar->rules[j]->left, right, finish, newLookaheads);
+            bool found = false;
+            for (int x = 0; x < ARRAY_CAPACITY; x++) {
+              if (items[x]) {
+                if (equalLR0(items[x], newItem)) {
+                  if (!arrayContainsAll(items[x]->lookaheads, newLookaheads)) {
+                    addAllCharPtrToArrayUnique(items[x]->lookaheads, newLookaheads);
+                    changed = true;
                   }
+                  found = true;
+                  break;
                 }
               }
-              if (!found) {
-                addItem(items, newItem);
-                changed = true;
-              } else {
-                free(newItem->lookaheads);
-                free(newItem);
-              }
+            }
+            if (!found) {
+              addItem(items, newItem);
+              changed = true;
+            } else {
+              free(newItem->lookaheads);
+              free(newItem);
             }
           }
-          free(lookaheads);
-          if (changed)
-            break;
         }
+        free(lookaheads);
+        if (changed)
+          break;
       }
     }
   } while (changed);
@@ -299,9 +301,11 @@ int getRuleIndex(Grammar *grammar, char *left, char **right) {
 }
 
 bool isTerminalInActionTable(ActionNode **table, char *terminal) {
-  for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (table[i] && strcmp(table[i]->terminal, terminal) == 0)
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (!table[i]) return false;
+    if (table[i]->terminal == terminal || strcmp(table[i]->terminal, terminal) == 0)
       return true;
+  }
   return false;
 }
 
@@ -329,11 +333,11 @@ void createActionTable(LR1Parser *parser, Grammar *grammar) {
               int index = getRuleIndex(grammar, item->left, item->right);
               for (int x = 0; x < ARRAY_CAPACITY; x++) {
                 if (item->lookaheads[x]) {
-                  if (isTerminalInActionTable(parser->actionTable[i], item->lookaheads[x])) {
-                    fprintf(stderr, "Conflict found\n");
-                  } else {
+                  //if (isTerminalInActionTable(parser->actionTable[i], item->lookaheads[x])) {
+                    //fprintf(stderr, "Conflict found\n");
+                  //} else {
                     addActionNode(parser->actionTable[i], makeActionNode(item->lookaheads[x], REDUCE, index));
-                  }
+                  //}
                 }
               }
             }
@@ -355,10 +359,11 @@ LR1Parser *createLR1Parser(Grammar *grammar, const char * const *tokenKindStr) {
 }
 
 char *getCharPtrArrayAsString(char **array) {
-  char *result = calloc(10000, sizeof(char));
-  for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (array[i])
-      sprintf(result + strlen(result), "%s, ", array[i]);
+  char *result = calloc(100000, sizeof(char));
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (!array[i]) return result;
+    sprintf(result + strlen(result), "%s, ", array[i]);
+  }
   return result;
 }
 

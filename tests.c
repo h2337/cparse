@@ -437,7 +437,8 @@ int main(int argc, char *argv[]) {
   clexRegisterKind("0[xX][a-fA-F0-9]+.[a-fA-F0-9]+[Pp][+-]?[0-9]+([fFlL])?", CONSTANT);
   clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
 
-  char grammarString[] = "primary_expression -> IDENTIFIER | CONSTANT | STRING_LITERAL | OPARAN expression CPARAN\n"
+  char grammarString[] = "S -> translation_unit\n"
+"primary_expression -> IDENTIFIER | CONSTANT | STRING_LITERAL | OPARAN expression CPARAN\n"
 "postfix_expression -> primary_expression | postfix_expression OSQUAREBRACE expression CSQUAREBRACE | postfix_expression OPARAN CPARAN | postfix_expression OPARAN argument_expression_list CPARAN | postfix_expression DOT IDENTIFIER | postfix_expression PTR_OP IDENTIFIER | postfix_expression INC_OP | postfix_expression DEC_OP | OPARAN type_name CPARAN OCURLYBRACE initializer_list CCURLYBRACE | OPARAN type_name CPARAN OCURLYBRACE initializer_list COMMA CCURLYBRACE\n"
 "argument_expression_list -> assignment_expression | argument_expression_list COMMA assignment_expression\n"
 "unary_expression -> postfix_expression | INC_OP unary_expression | DEC_OP unary_expression | unary_operator cast_expression | SIZEOF unary_expression | SIZEOF OPARAN type_name CPARAN\n"
@@ -512,12 +513,10 @@ int main(int argc, char *argv[]) {
   LR1Parser *parser = createLR1Parser(grammar, tokenKindStr);
   printf("%s\n", getLR1ParserAsString(parser));
 
-  /*
   printf("%d\n", accept(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}"));
 
   ParseTreeNode *node = parse(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}");
   printf("%s\n", getParseTreeAsString(node));
-  */
 }
 
 #endif

@@ -199,7 +199,7 @@ SetItem *copySetItem(SetItem *setItem) {
 }
 
 char **copyCharArray(char **values) {
-  char **result = malloc(ARRAY_CAPACITY * sizeof(char *));
+  char **result = calloc(ARRAY_CAPACITY, sizeof(char *));
   memcpy(result, values, ARRAY_CAPACITY);
   return result;
 }
@@ -210,8 +210,9 @@ void addCharPtrToArrayUnique(char **array, char *value) {
 }
 
 void addAllCharPtrToArrayUnique(char **destination, char **source) {
-  for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (source[i])
-      addCharPtrToArrayUnique(destination, source[i]);
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (!source[i]) return;
+    addCharPtrToArrayUnique(destination, source[i]);
+  }
 }
 
