@@ -1,10 +1,7 @@
-#ifndef GRAMMAR_H
-#define GRAMMAR_H
+#ifndef CPARSE_GRAMMAR_H
+#define CPARSE_GRAMMAR_H
 
-typedef struct SetItem {
-  char *key;
-  char **values;
-} SetItem;
+#include "util.h"
 
 typedef struct Rule {
   char *left;
@@ -24,3 +21,4 @@ Grammar *parseGrammar(char *grammarString);
 char *getGrammarAsString(Grammar *grammar);
 
 #endif
+
