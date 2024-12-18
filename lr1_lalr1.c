@@ -495,7 +495,7 @@ char *getLR1ParserAsString(LR1Parser *parser) {
         if (parser->collection[i]->items[j]) {
           sprintf(result + strlen(result), "%s -> %s\n", parser->collection[i]->items[j]->left, getCharPtrArrayAsString(parser->collection[i]->items[j]->right));
           sprintf(result + strlen(result), "Dot: %d\n", parser->collection[i]->items[j]->dot);
-          sprintf(result + strlen(result), "Lookaheads: %s\n", getCharPtrArrayAsString(parser->collection[i]->items[j]->lookaheads));
+          sprintf(result + strlen(result), "Lookaheads: %s\n", getCharPtrArrayAsString(parser->collection[i]->items[j]->lookaheads)); // TODO: Fix heap overflow with LALR(1)
         }
       }
       sprintf(result + strlen(result), "Transitions:\n");
