@@ -503,7 +503,7 @@ ParseTreeNode *makeParseTreeNodeWithToken(char *value, Token token) {
 }
 
 ParseTreeNode *peekParseTreeNode(ParseTreeNode **stack) {
-  ParseTreeNode *result;
+  ParseTreeNode *result = NULL;
   for (int i = 0; i < ARRAY_CAPACITY; i++)
     if (stack[i]) result = stack[i];
     else return result;
@@ -574,7 +574,7 @@ ParseTreeNode *cparse(LR1Parser *parser, char *input) {
       for (int i = 0; i < 2 * getValuesLength(rule->right); i++) {
         char *popped = pop(stack);
         if (isNode(parser->grammar, popped)) {
-          if (strcmp(peekParseTreeNode(nodeStack)->value, popped) == 0) {
+          if (peekParseTreeNode(nodeStack) && strcmp(peekParseTreeNode(nodeStack)->value, popped) == 0) {
             ParseTreeNode *savedNode = popParseTreeNode(nodeStack);
             addParseTreeNodePtrToArray(root->children, savedNode);
           } else {
