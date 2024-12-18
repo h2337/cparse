@@ -1,6 +1,7 @@
 #ifdef TEST_CPARSE
 
 #include "grammar.h"
+#include "lr1.h"
 #include <stdio.h>
 
 int main(int argc, char *argv[]) {
@@ -18,8 +19,8 @@ int main(int argc, char *argv[]) {
                           "Operators -> #\n"
                           "Operator -> read ( Variable )\n"
                           "Operator -> write ( Variable )\n";
-  grammar = parseGrammar(grammarString2);
-  printf("%s\n", getGrammarAsString(grammar));
+  Grammar *grammar2 = parseGrammar(grammarString2);
+  printf("%s\n", getGrammarAsString(grammar2));
 
   printf("\n");
 
@@ -28,8 +29,13 @@ int main(int argc, char *argv[]) {
                           "E -> T\n"
                           "T -> id ( E )\n"
                           "T -> id\n";
-  grammar = parseGrammar(grammarString3);
-  printf("%s\n", getGrammarAsString(grammar));
+  Grammar *grammar3 = parseGrammar(grammarString3);
+  printf("%s\n", getGrammarAsString(grammar3));
+
+  printf("\n");
+
+  LR1Parser *parser = createLR1Parser(grammar2);
+  printf("%s\n", getLR1ParserAsString(parser));
 }
 
 #endif
