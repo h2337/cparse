@@ -70,7 +70,10 @@ char **stringToWords(char *string) {
   return result;
 }
 
+bool inSet(SetItem **set, char *key, char *value);
+
 void addToSet(SetItem **set, char *key, char *value) {
+  if (inSet(set, key, value)) return;
   for (int i = 0; i < 1024; i++)
     if (set[i] && strcmp(set[i]->key, key) == 0)
       for (int j = 0; j < 1024; j++)
