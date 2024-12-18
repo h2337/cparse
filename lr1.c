@@ -74,9 +74,11 @@ char **computeFirstByIndex(Grammar *grammar, char **strings, int index) {
     addCharPtrToArray(result, strings[index]);
     return result;
   }
-  if (inArray(grammar->nonterminals, strings[index]))
-    addAllCharPtrToArrayUnique(result, findValuesInSet(grammar->first, strings[index]));
-  if (inArray(result, "#"))
+  if (inArray(grammar->nonterminals, strings[index])) {
+    char **source = findValuesInSet(grammar->first, strings[index]);
+    if (source)
+      addAllCharPtrToArrayUnique(result, source);
+  } if (inArray(result, "#"))
     if (index != getValuesLength(strings) - 1) {
       removeCharPtrFromArray(result, "#");
       addAllCharPtrToArrayUnique(result, computeFirstByIndex(grammar, strings, index + 1));

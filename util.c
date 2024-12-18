@@ -86,9 +86,12 @@ void addAllToSetItem(SetItem *setItem, char **values) {
 }
 
 bool inArray(char **array, char *value) {
-  for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (array[i] && (array[i] == value || strcmp(array[i], value) == 0))
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (!array[i])
+      return false;
+    if (array[i] == value || strcmp(array[i], value) == 0)
       return true;
+  }
   return false;
 }
 
