@@ -2,6 +2,7 @@
 #define CPARSE_LR1_H
 
 #include "grammar.h"
+#include "clex/clex.h"
 
 typedef struct LR1Item {
   char **lookaheads;
@@ -55,6 +56,7 @@ typedef struct ParseTreeNode ParseTreeNode;
 
 typedef struct ParseTreeNode {
   char *value;
+  Token token;
   ParseTreeNode **children;
 } ParseTreeNode;
 
