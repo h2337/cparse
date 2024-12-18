@@ -462,7 +462,7 @@ bool cparseAccept(LR1Parser *parser, char *input) {
       token = clex();
     lexNext = true;
     int state = atoi(peek(stack));
-    const char *nextInput = token.kind ? parser->tokenKindStr[token.kind] : "$"; // TODO: Add $ only once
+    const char *nextInput = token.kind >= 0 ? parser->tokenKindStr[token.kind] : "$"; // TODO: Add $ only once
     ActionNode *action = getAction(parser->actionTable[state], nextInput);
     if (action == NULL) {
       return false;
@@ -530,7 +530,7 @@ void addParseTreeNodePtrToArray(ParseTreeNode **array, ParseTreeNode *value) {
 
 void addTokenToArray(Token *array, Token token) {
   for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (array[i].kind == 0) {
+    if (array[i].kind < 0) {
       array[i] = token;
       break;
     }
@@ -538,12 +538,12 @@ void addTokenToArray(Token *array, Token token) {
 
 Token popToken(Token *stack) {
   for (int i = 1; i < ARRAY_CAPACITY; i++)
-    if (stack[i].kind == 0 && stack[i - 1].kind != 0) {
+    if (stack[i].kind < 0 && stack[i - 1].kind >= 0) {
       Token token = stack[i - 1];
-      stack[i - 1].kind = 0;
+      stack[i - 1].kind = -1;
       return token;
     }
-  return (Token){ .kind = 0, .lexeme = NULL };
+  return (Token){ .kind = -1, .lexeme = NULL };
 }
 
 ParseTreeNode *cparse(LR1Parser *parser, char *input) {
@@ -552,6 +552,8 @@ ParseTreeNode *cparse(LR1Parser *parser, char *input) {
   char **stack = calloc(ARRAY_CAPACITY, sizeof(char *));
   ParseTreeNode **nodeStack = calloc(ARRAY_CAPACITY, sizeof(ParseTreeNode *));
   Token *tokenStack = calloc(ARRAY_CAPACITY, sizeof(Token));
+  for (int i = 0; i < ARRAY_CAPACITY; i++)
+    tokenStack[i].kind = -1;
   addCharPtrToArray(stack, "0");
   bool lexNext = true;
   ParseTreeNode *root;
@@ -560,7 +562,7 @@ ParseTreeNode *cparse(LR1Parser *parser, char *input) {
       token = clex();
     lexNext = true;
     int state = atoi(peek(stack));
-    const char *nextInput = token.kind ? parser->tokenKindStr[token.kind] : "$"; // TODO: Add $ only once
+    const char *nextInput = token.kind >= 0 ? parser->tokenKindStr[token.kind] : "$"; // TODO: Add $ only once
     ActionNode *action = getAction(parser->actionTable[state], nextInput);
     if (action == NULL) {
       return NULL;
