@@ -1,6 +1,11 @@
 #ifndef GRAMMAR_H
 #define GRAMMAR_H
 
+typedef struct SetItem {
+  char *key;
+  char **values;
+} SetItem;
+
 typedef struct Rule {
   char *left;
   char **right;
@@ -11,6 +16,8 @@ typedef struct Grammar {
   char **terminals;
   char **nonterminals;
   char *start;
+  SetItem **first;
+  SetItem **follow;
 } Grammar;
 
 Grammar *parseGrammar(char *grammarString);
