@@ -135,6 +135,7 @@ void closure(Grammar *grammar, LR1Item **items) {
               addAllCharPtrToArrayUnique(firstSet, items[i]->lookaheads);
             }
             addAllCharPtrToArrayUnique(lookaheads, firstSet);
+            free(firstSet);
           }
           for (int j = 0; j < ARRAY_CAPACITY; j++) {
             if (grammar->rules[j] && strcmp(grammar->rules[j]->left, items[i]->right[items[i]->dot]) == 0) {
@@ -227,9 +228,17 @@ void createCollection(LR1Parser *parser, Grammar *grammar) {
           if (!exists) {
             addState(parser->collection, state);
             addTransition(parser->collection[i]->transitions, makeTransition(strings[j], state));
+          } else {
+            for (int i = 0; i < ARRAY_CAPACITY; i++)
+              if (items[i])
+                free(items[i]);
+            free(items);
+            free(state->transitions);
+            free(state);
           }
         }
       }
+      free(strings);
     }
   }
 }
