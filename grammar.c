@@ -253,7 +253,7 @@ void computeFollowSet(Grammar *grammar) {
                 } else {
                   SetItem *rightFirst = findInSet(grammar->first, grammar->rules[i]->right[j + 1]);
                   if (rightFirst)
-                    first = copySetItem(rightFirst);
+                    first = copySetItem(rightFirst); // TODO: why copy?
                   else {
                     first = calloc(1, sizeof(SetItem));
                     first->values = calloc(1024, sizeof(SetItem));
