@@ -28,6 +28,8 @@ SetItem *findInSet(SetItem **set, char *key);
 int getValuesLength(char **values);
 void createSetItem(SetItem **set, char *key);
 SetItem *copySetItem(SetItem *setItem);
+void addCharPtrToArrayUnique(char **array, char *value);
+void addAllCharPtrToArrayUnique(char **destination, char **source);
 
 #endif
 

@@ -167,3 +167,14 @@ SetItem *copySetItem(SetItem *setItem) {
   return result;
 }
 
+void addCharPtrToArrayUnique(char **array, char *value) {
+  if (!inArray(array, value))
+    addCharPtrToArray(array, value);
+}
+
+void addAllCharPtrToArrayUnique(char **destination, char **source) {
+  for (int i = 0; i < 1024; i++)
+    if (source[i])
+      addCharPtrToArrayUnique(destination, source[i]);
+}
+
