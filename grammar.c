@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 SetItem **makeSet() {
   SetItem **set = calloc(1024, sizeof(SetItem));
@@ -62,7 +63,7 @@ Rule *makeRule() {
 char **stringToWords(char *string) {
   char **result = calloc(1024, sizeof(char *));
   char *rest, *token, *stringPtr = string;
-  while (token = strtok_r(stringPtr, " ", &rest)) {
+  while ((token = strtok_r(stringPtr, " ", &rest))) {
     addCharPtrToArray(result, token);
     stringPtr = rest;
   }
@@ -87,17 +88,74 @@ void addToSet(SetItem **set, char *key, char *value) {
     }
 }
 
+void addAllToSet(SetItem **set, char *key, char **values) {
+  for (int i = 0; i < 1024; i++)
+    if (values[i])
+      addToSet(set, key, values[i]);
+}
+
+bool inArray(char **array, char *value) {
+  for (int i = 0; i < 1024; i++)
+    if (array[i] && strcmp(array[i], value) == 0)
+      return true;
+  return false;
+}
+
+bool inSet(SetItem **set, char *key, char *value) {
+  for (int i = 0; i < 1024; i++)
+    if (set[i] && strcmp(set[i]->key, key) == 0)
+      for (int j = 0; j < 1024; j++)
+        if (set[i]->values[j] && strcmp(set[i]->values[j], value) == 0)
+          return true;
+  return false;
+}
+
+char **findValuesInSet(SetItem **set, char *key) {
+  for (int i = 0; i < 1024; i++)
+    if (set[i] && strcmp(set[i]->key, key) == 0)
+        return set[i]->values;
+  return NULL;
+}
+
+void computeFirst(Grammar *grammar, char *nonterminal) {
+  for (int j = 0; j < 1024; j++) {
+    if (grammar->rules[j] && strcmp(grammar->rules[j]->left, nonterminal) == 0) {
+      if (grammar->rules[j]->right[0]) {
+        if (strcmp(grammar->rules[j]->right[0], "#") == 0) {
+          addToSet(grammar->first, nonterminal, "#");
+        } else if (inArray(grammar->terminals, grammar->rules[j]->right[0])) {
+          addToSet(grammar->first, nonterminal, grammar->rules[j]->right[0]);
+        } else if (inArray(grammar->nonterminals, grammar->rules[j]->right[0])) {
+          int count = 0;
+          computeFirst(grammar, grammar->rules[j]->right[count]);
+          if (!inSet(grammar->first, grammar->rules[j]->right[count], "#")) {
+            addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[0]));
+          } else {
+            addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[0]));
+            while (true) {
+              computeFirst(grammar, grammar->rules[j]->right[++count]);
+              addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[count]));
+              if (!inSet(grammar->first, grammar->rules[j]->right[count], "#"))
+                break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+}
+
 void computeFirstSet(Grammar *grammar) {
-  addToSet(grammar->first, "S", "a");
-  addToSet(grammar->first, "S", "b");
-  addToSet(grammar->first, "A", "a");
-  addToSet(grammar->first, "A", "b");
+  for (int i = 0; i < 1024; i++)
+    if (grammar->nonterminals[i])
+      computeFirst(grammar, grammar->nonterminals[i]);
 }
 
 Grammar *parseGrammar(char *grammarString) {
   Grammar *grammar = makeGrammar();
   char *rest, *token, *grammarStringPtr = grammarString;
-  while (token = strtok_r(grammarStringPtr, "\n", &rest)) {
+  while ((token = strtok_r(grammarStringPtr, "\n", &rest))) {
     char *left = trim(strtok(token, "->"));
     if (!grammar->start) {
       grammar->start = left;
