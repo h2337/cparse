@@ -91,6 +91,21 @@ bool inArray(char **array, char *value) {
   return false;
 }
 
+bool isArrayEqual(char **a, char **b) {
+  for (int i = 0; i < 1024; i++)
+    if (a[i])
+      if (!b[i] || strcmp(a[i], b[i]) != 0)
+        return false;
+  return true;
+}
+
+bool arrayContainsAll(char **a, char **b) {
+  for (int i = 0; i < 1024; i++)
+    if (b[i] && !inArray(a, b[i]))
+      return false;
+  return true;
+}
+
 bool inSet(SetItem **set, char *key, char *value) {
   for (int i = 0; i < 1024; i++)
     if (set[i] && strcmp(set[i]->key, key) == 0)
@@ -164,6 +179,14 @@ SetItem *copySetItem(SetItem *setItem) {
   for (int i = 0; i < 1024; i++)
     if (setItem->values[i])
       result->values[i] = setItem->values[i];
+  return result;
+}
+
+char **copyCharArray(char **values) {
+  char **result = calloc(1024, sizeof(char *));
+  for (int i = 0; i < 1024; i++)
+    if (values[i])
+      addCharPtrToArray(result, values[i]);
   return result;
 }
 

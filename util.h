@@ -18,6 +18,8 @@ void addToSetItem(SetItem *setItem, char *value);
 void addAllToSet(SetItem **set, char *key, char **values);
 void addAllToSetItem(SetItem *setItem, char **values);
 bool inArray(char **array, char *value);
+bool isArrayEqual(char **a, char **b);
+bool arrayContainsAll(char **a, char **b);
 bool inSet(SetItem **set, char *key, char *value);
 bool isKeyInSet(SetItem **set, char *key);
 bool inSetItem(SetItem *setItem, char *value);
@@ -28,6 +30,7 @@ SetItem *findInSet(SetItem **set, char *key);
 int getValuesLength(char **values);
 void createSetItem(SetItem **set, char *key);
 SetItem *copySetItem(SetItem *setItem);
+char **copyCharArray(char **values);
 void addCharPtrToArrayUnique(char **array, char *value);
 void addAllCharPtrToArrayUnique(char **destination, char **source);
 
