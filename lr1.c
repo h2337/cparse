@@ -531,9 +531,7 @@ ParseTreeNode *parse(LR1Parser *parser, char *input) {
         if (isNode(parser->grammar, popped)) {
           if (strcmp(peekParseTreeNode(nodeStack)->value, popped) == 0) {
             ParseTreeNode *savedNode = popParseTreeNode(nodeStack);
-            for (int i = 0; i < 1024; i++)
-              if (savedNode->children[i])
-                addParseTreeNodePtrToArray(root->children, savedNode);
+            addParseTreeNodePtrToArray(root->children, savedNode);
           } else {
             addParseTreeNodePtrToArray(root->children, makeParseTreeNode(popped));
           }
