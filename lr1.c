@@ -160,9 +160,13 @@ void closure(Grammar *grammar, LR1Item **items) {
               if (!found) {
                 addItem(items, newItem);
                 changed = true;
+              } else {
+                free(newItem->lookaheads);
+                free(newItem);
               }
             }
           }
+          free(lookaheads);
           if (changed)
             break;
         }
