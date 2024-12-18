@@ -563,7 +563,7 @@ int main(int argc, char *argv[]) {
   LR1Parser *parser = cparseCreateLR1Parser(grammar, tokenKindStr);
 
   // Test if given input is valid within the grammar
-  printf("%d\n", cparseAccept(parser, "return id1;"));
+  assert(cparseAccept(parser, "return id1;") == true);
 
   // Parse a given input and get a parse tree
   ParseTreeNode *node = cparse(parser, "return id1;");
