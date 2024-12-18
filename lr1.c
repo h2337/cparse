@@ -179,9 +179,12 @@ void closure(Grammar *grammar, LR1Item **items) {
 }
 
 bool inArrayLR1Item(LR1Item **array, LR1Item *item) {
-  for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (array[i] && array[i]->dot == item->dot && strcmp(array[i]->left, item->left) == 0 && isArrayEqual(array[i]->right, item->right) && isArrayEqual(array[i]->lookaheads, item->lookaheads))
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (!array[i])
+      return false;
+    if (array[i]->dot == item->dot && strcmp(array[i]->left, item->left) == 0 && isArrayEqual(array[i]->right, item->right) && isArrayEqual(array[i]->lookaheads, item->lookaheads))
       return true;
+  }
   return false;
 }
 
