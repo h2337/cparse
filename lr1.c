@@ -477,10 +477,37 @@ ParseTreeNode *makeParseTreeNode(char *value) {
   return node;
 }
 
+ParseTreeNode *peekParseTreeNode(ParseTreeNode **stack) {
+  ParseTreeNode *result;
+  for (int i = 0; i < 1024; i++)
+    if (stack[i]) result = stack[i];
+    else return result;
+  return result;
+}
+
+ParseTreeNode *popParseTreeNode(ParseTreeNode **stack) {
+  for (int i = 1; i < 1024; i++)
+    if (!stack[i] && stack[i - 1]) {
+      ParseTreeNode *value = stack[i - 1];
+      stack[i - 1] = NULL;
+      return value;
+    }
+  return NULL;
+}
+
+void addParseTreeNodePtrToArray(ParseTreeNode **array, ParseTreeNode *value) {
+  for (int i = 0; i < 1024; i++)
+    if (!array[i]) {
+      array[i] = value;
+      break;
+    }
+}
+
 ParseTreeNode *parse(LR1Parser *parser, char *input) {
   clexInit(input);
   Token token;
   char **stack = calloc(1024, sizeof(char *));
+  ParseTreeNode **nodeStack = calloc(1024, sizeof(ParseTreeNode *));
   addCharPtrToArray(stack, "0");
   bool lexNext = true;
   ParseTreeNode *root;
@@ -501,15 +528,20 @@ ParseTreeNode *parse(LR1Parser *parser, char *input) {
       root = makeParseTreeNode(rule->left);
       for (int i = 0; i < 2 * getValuesLength(rule->right); i++) {
         char *popped = pop(stack);
-        if (isNode(parser->grammar, popped))
-          for (int i = 0; i < 1024; i++)
-            if (!root->children[i]) {
-              root->children[i] = makeParseTreeNode(popped);
-              break;
-            }
+        if (isNode(parser->grammar, popped)) {
+          if (strcmp(peekParseTreeNode(nodeStack)->value, popped) == 0) {
+            ParseTreeNode *savedNode = popParseTreeNode(nodeStack);
+            for (int i = 0; i < 1024; i++)
+              if (savedNode->children[i])
+                addParseTreeNodePtrToArray(root->children, savedNode);
+          } else {
+            addParseTreeNodePtrToArray(root->children, makeParseTreeNode(popped));
+          }
+        }
       }
       int nextState = atoi(peek(stack));
       addCharPtrToArray(stack, rule->left);
+      addParseTreeNodePtrToArray(nodeStack, root);
       int goToState = getGoToState(parser->goToTable[nextState], rule->left);
       addCharPtrToArray(stack, intToString(goToState));
       lexNext = false;
@@ -518,24 +550,6 @@ ParseTreeNode *parse(LR1Parser *parser, char *input) {
     }
   }
   return NULL;
-}
-
-ParseTreeNode *popParseTreeNode(ParseTreeNode **stack) {
-  for (int i = 1; i < 1024; i++)
-    if (!stack[i] && stack[i - 1]) {
-      ParseTreeNode *value = stack[i - 1];
-      stack[i - 1] = NULL;
-      return value;
-    }
-  return NULL;
-}
-
-void addParseTreeNodePtrToArray(ParseTreeNode **array, ParseTreeNode *value) {
-  for (int i = 0; i < 1024; i++)
-    if (!array[i]) {
-      array[i] = value;
-      break;
-    }
 }
 
 char *getParseTreeAsString(ParseTreeNode *node) {
