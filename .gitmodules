@@ -1,0 +1,3 @@
+[submodule "clex"]
+	path = clex
+	url = https://github.com/jafarlihi/clex
