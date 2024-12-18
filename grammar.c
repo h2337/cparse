@@ -34,22 +34,22 @@ void computeFirst(Grammar *grammar, char *nonterminal) {
   for (int j = 0; j < ARRAY_CAPACITY; j++) {
     if (grammar->rules[j] && strcmp(grammar->rules[j]->left, nonterminal) == 0) {
       if (grammar->rules[j]->right[0]) {
-        if (strcmp(grammar->rules[j]->right[0], "#") == 0) {
-          addToSet(grammar->first, nonterminal, "#");
+        if (strcmp(grammar->rules[j]->right[0], "epsilon") == 0) {
+          addToSet(grammar->first, nonterminal, "epsilon");
         } else if (inArray(grammar->terminals, grammar->rules[j]->right[0])) {
           addToSet(grammar->first, nonterminal, grammar->rules[j]->right[0]);
         } else if (inArray(grammar->nonterminals, grammar->rules[j]->right[0])) {
           int count = 0;
           if (strcmp(grammar->rules[j]->left, grammar->rules[j]->right[count]) != 0)
             computeFirst(grammar, grammar->rules[j]->right[count]);
-          if (!inSet(grammar->first, grammar->rules[j]->right[count], "#")) {
+          if (!inSet(grammar->first, grammar->rules[j]->right[count], "epsilon")) {
             addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[0]));
           } else {
             addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[0])); // TODO: Minus epsilon?
             while (true) {
               computeFirst(grammar, grammar->rules[j]->right[++count]);
               addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[count]));
-              if (!inSet(grammar->first, grammar->rules[j]->right[count], "#"))
+              if (!inSet(grammar->first, grammar->rules[j]->right[count], "epsilon"))
                 break;
             }
           }
@@ -94,8 +94,8 @@ void computeFollowSet(Grammar *grammar) {
                     first->values = calloc(ARRAY_CAPACITY, sizeof(SetItem));
                     first->values[0] = grammar->rules[i]->right[j + 1];
                   }
-                  if (inSetItem(first, "#")) {
-                    removeFromSetItem(first, "#");
+                  if (inSetItem(first, "epsilon")) {
+                    removeFromSetItem(first, "epsilon");
                     addAllToSetItem(first, findValuesInSet(grammar->follow, grammar->rules[i]->left));
                   }
                 }
@@ -134,7 +134,7 @@ Grammar *cparseGrammar(char *grammarString) {
       singleRight = trim(singleRight);
       char **singleRightWords = stringToWords(singleRight);
       for (int i = 0; i < ARRAY_CAPACITY; i++)
-        if (singleRightWords[i] && strcmp(singleRightWords[i], "#") != 0)
+        if (singleRightWords[i] && strcmp(singleRightWords[i], "epsilon") != 0)
           addCharPtrToArrayUnique(grammar->terminals, singleRightWords[i]);
       Rule *rule = makeRule();
       rule->left = left;

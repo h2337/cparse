@@ -70,7 +70,7 @@ char **computeFirstByIndex(Grammar *grammar, char **strings, int index) {
   char **result = calloc(ARRAY_CAPACITY, sizeof(char *));
   if (index == getValuesLength(strings))
     return result;
-  if (inArray(grammar->terminals, strings[index]) || strcmp(strings[index], "#") == 0) {
+  if (inArray(grammar->terminals, strings[index]) || strcmp(strings[index], "epsilon") == 0) {
     addCharPtrToArray(result, strings[index]);
     return result;
   }
@@ -79,8 +79,8 @@ char **computeFirstByIndex(Grammar *grammar, char **strings, int index) {
     if (source)
       addAllCharPtrToArrayUnique(result, source);
   }
-  if (inArray(result, "#") && index != getValuesLength(strings) - 1) {
-    removeCharPtrFromArray(result, "#");
+  if (inArray(result, "epsilon") && index != getValuesLength(strings) - 1) {
+    removeCharPtrFromArray(result, "epsilon");
     addAllCharPtrToArrayUnique(result, computeFirstByIndex(grammar, strings, index + 1));
   }
   return result;
@@ -132,8 +132,8 @@ void closure(Grammar *grammar, LR1Item **items) {
           addAllCharPtrToArrayUnique(lookaheads, items[i]->lookaheads);
         } else {
           char **firstSet = computeFirstByIndex(grammar, items[i]->right, items[i]->dot + 1);
-          if (inArray(firstSet, "#")) {
-            removeCharPtrFromArray(firstSet, "#");
+          if (inArray(firstSet, "epsilon")) {
+            removeCharPtrFromArray(firstSet, "epsilon");
             addAllCharPtrToArrayUnique(firstSet, items[i]->lookaheads);
           }
           addAllCharPtrToArrayUnique(lookaheads, firstSet);
@@ -144,7 +144,7 @@ void closure(Grammar *grammar, LR1Item **items) {
           if (strcmp(grammar->rules[j]->left, items[i]->right[items[i]->dot]) == 0) {
             char **right = grammar->rules[j]->right;
             int finish = 0;
-            if (getValuesLength(right) == 1 && strcmp(right[0], "#") == 0)
+            if (getValuesLength(right) == 1 && strcmp(right[0], "epsilon") == 0)
               finish = 1;
             char **newLookaheads = copyCharArray(lookaheads);
             LR1Item *newItem = makeLR1Item(grammar->rules[j]->left, right, finish, newLookaheads);
