@@ -437,9 +437,78 @@ int main(int argc, char *argv[]) {
   clexRegisterKind("0[xX][a-fA-F0-9]+.[a-fA-F0-9]+[Pp][+-]?[0-9]+([fFlL])?", CONSTANT);
   clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
 
-  char grammarString[] = "S -> A IDENTIFIER SEMICOL\nA -> RETURN\n";
+  char grammarString[] = "primary_expression -> IDENTIFIER | CONSTANT | STRING_LITERAL | OPARAN expression CPARAN\n"
+"postfix_expression -> primary_expression | postfix_expression OSQUAREBRACE expression CSQUAREBRACE | postfix_expression OPARAN CPARAN | postfix_expression OPARAN argument_expression_list CPARAN | postfix_expression DOT IDENTIFIER | postfix_expression PTR_OP IDENTIFIER | postfix_expression INC_OP | postfix_expression DEC_OP | OPARAN type_name CPARAN OCURLYBRACE initializer_list CCURLYBRACE | OPARAN type_name CPARAN OCURLYBRACE initializer_list COMMA CCURLYBRACE\n"
+"argument_expression_list -> assignment_expression | argument_expression_list COMMA assignment_expression\n"
+"unary_expression -> postfix_expression | INC_OP unary_expression | DEC_OP unary_expression | unary_operator cast_expression | SIZEOF unary_expression | SIZEOF OPARAN type_name CPARAN\n"
+"unary_operator -> AMPER | STAR | PLUS | MINUS | TILDE | EXCLAMATION\n"
+"cast_expression -> unary_expression | OPARAN type_name CPARAN cast_expression\n"
+"multiplicative_expression -> cast_expression | multiplicative_expression STAR cast_expression | multiplicative_expression SLASH cast_expression | multiplicative_expression PERCENT cast_expression\n"
+"additive_expression -> multiplicative_expression | additive_expression PLUS multiplicative_expression | additive_expression MINUS multiplicative_expression\n"
+"shift_expression -> additive_expression | shift_expression LEFT_OP additive_expression | shift_expression RIGHT_OP additive_expression\n"
+"relational_expression -> shift_expression | relational_expression RANGLE shift_expression | relational_expression LANGLE shift_expression | relational_expression LE_OP shift_expression | relational_expression GE_OP shift_expression\n"
+"equality_expression -> relational_expression | equality_expression EQ_OP relational_expression | equality_expression NE_OP relational_expression\n"
+"and_expression -> equality_expression | and_expression AMPER equality_expression\n"
+"exclusive_or_expression -> and_expression | exclusive_or_expression CARET and_expression\n"
+"inclusive_or_expression -> exclusive_or_expression | inclusive_or_expression PIPE exclusive_or_expression\n"
+"logical_and_expression -> inclusive_or_expression | logical_and_expression AND_OP inclusive_or_expression\n"
+"logical_or_expression -> logical_and_expression | logical_or_expression OR_OP logical_and_expression\n"
+"conditional_expression -> logical_or_expression | logical_or_expression QUESTION expression COLON conditional_expression\n"
+"assignment_expression -> conditional_expression | unary_expression assignment_operator assignment_expression\n"
+"assignment_operator -> EQUAL | MUL_ASSIGN | DIV_ASSIGN | MOD_ASSIGN | ADD_ASSIGN | SUB_ASSIGN | LEFT_ASSIGN | RIGHT_ASSIGN | AND_ASSIGN | XOR_ASSIGN | OR_ASSIGN\n"
+"expression -> assignment_expression | expression COMMA assignment_expression\n"
+"constant_expression -> conditional_expression\n"
+"declaration -> declaration_specifiers SEMICOL | declaration_specifiers init_declarator_list SEMICOL\n"
+"declaration_specifiers -> storage_class_specifier | storage_class_specifier declaration_specifiers | type_specifier | type_specifier declaration_specifiers | type_qualifier | type_qualifier declaration_specifiers | function_specifier | function_specifier declaration_specifiers\n"
+"init_declarator_list -> init_declarator | init_declarator_list COMMA init_declarator\n"
+"init_declarator -> declarator | declarator EQUAL initializer\n"
+"storage_class_specifier -> TYPEDEF | EXTERN | STATIC | AUTO | REGISTER\n"
+"type_specifier -> VOID | CHAR | SHORT | INT | LONG | FLOAT | DOUBLE | SIGNED | UNSIGNED | BOOL | COMPLEX | IMAGINARY | struct_or_union_specifier | enum_specifier | TYPE_NAME\n"
+"struct_or_union_specifier -> struct_or_union IDENTIFIER OCURLYBRACE struct_declaration_list CCURLYBRACE | struct_or_union OCURLYBRACE struct_declaration_list CCURLYBRACE | struct_or_union IDENTIFIER\n"
+"struct_or_union -> STRUCT | UNION\n"
+"struct_declaration_list -> struct_declaration | struct_declaration_list struct_declaration\n"
+"struct_declaration -> specifier_qualifier_list struct_declarator_list SEMICOL\n"
+"specifier_qualifier_list -> type_specifier specifier_qualifier_list | type_specifier | type_qualifier specifier_qualifier_list | type_qualifier\n"
+"struct_declarator_list -> struct_declarator | struct_declarator_list COMMA struct_declarator\n"
+"struct_declarator -> declarator | COLON constant_expression | declarator COLON constant_expression\n"
+"enum_specifier -> ENUM OCURLYBRACE enumerator_list CCURLYBRACE | ENUM IDENTIFIER OCURLYBRACE enumerator_list CCURLYBRACE | ENUM OCURLYBRACE enumerator_list COMMA CCURLYBRACE | ENUM IDENTIFIER OCURLYBRACE enumerator_list COMMA CCURLYBRACE | ENUM IDENTIFIER\n"
+"enumerator_list -> enumerator | enumerator_list COMMA enumerator\n"
+"enumerator -> IDENTIFIER | IDENTIFIER EQUAL constant_expression\n"
+"type_qualifier -> CONST | RESTRICT | VOLATILE\n"
+"function_specifier -> INLINE\n"
+"declarator -> pointer direct_declarator | direct_declarator\n"
+"direct_declarator -> IDENTIFIER | OPARAN declarator CPARAN | direct_declarator OSQUAREBRACE type_qualifier_list assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE type_qualifier_list CSQUAREBRACE | direct_declarator OSQUAREBRACE assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE STATIC type_qualifier_list assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE type_qualifier_list STATIC assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE type_qualifier_list STAR CSQUAREBRACE | direct_declarator OSQUAREBRACE STAR CSQUAREBRACE | direct_declarator OSQUAREBRACE CSQUAREBRACE | direct_declarator OPARAN parameter_type_list CPARAN | direct_declarator OPARAN identifier_list CPARAN | direct_declarator OPARAN CPARAN\n"
+"pointer -> STAR | STAR type_qualifier_list | STAR pointer | STAR type_qualifier_list pointer\n"
+"type_qualifier_list -> type_qualifier | type_qualifier_list type_qualifier\n"
+"parameter_type_list -> parameter_list | parameter_list COMMA ELLIPSIS\n"
+"parameter_list -> parameter_declaration | parameter_list COMMA parameter_declaration\n"
+"parameter_declaration -> declaration_specifiers declarator | declaration_specifiers abstract_declarator | declaration_specifiers\n"
+"identifier_list -> IDENTIFIER | identifier_list COMMA IDENTIFIER\n"
+"type_name -> specifier_qualifier_list | specifier_qualifier_list abstract_declarator\n"
+"abstract_declarator -> pointer | direct_abstract_declarator | pointer direct_abstract_declarator\n"
+"direct_abstract_declarator -> OPARAN abstract_declarator CPARAN | OSQUAREBRACE CSQUAREBRACE | OSQUAREBRACE assignment_expression CSQUAREBRACE | direct_abstract_declarator OSQUAREBRACE CSQUAREBRACE | direct_abstract_declarator OSQUAREBRACE assignment_expression CSQUAREBRACE | OSQUAREBRACE STAR CSQUAREBRACE | direct_abstract_declarator OSQUAREBRACE STAR CSQUAREBRACE | OPARAN CPARAN | OPARAN parameter_type_list CPARAN | direct_abstract_declarator OPARAN CPARAN | direct_abstract_declarator OPARAN parameter_type_list CPARAN\n"
+"initializer -> assignment_expression | OCURLYBRACE initializer_list CCURLYBRACE | OCURLYBRACE initializer_list COMMA CCURLYBRACE\n"
+"initializer_list -> initializer | designation initializer | initializer_list COMMA initializer | initializer_list COMMA designation initializer\n"
+"designation -> designator_list EQUAL\n"
+"designator_list -> designator | designator_list designator\n"
+"designator -> OSQUAREBRACE constant_expression CSQUAREBRACE | DOT IDENTIFIER\n"
+"statement -> labeled_statement | compound_statement | expression_statement | selection_statement | iteration_statement | jump_statement\n"
+"labeled_statement -> IDENTIFIER COLON statement | CASE constant_expression COLON statement | DEFAULT COLON statement\n"
+"compound_statement -> OCURLYBRACE CCURLYBRACE | OCURLYBRACE block_item_list CCURLYBRACE\n"
+"block_item_list -> block_item | block_item_list block_item\n"
+"block_item -> declaration | statement\n"
+"expression_statement -> SEMICOL | expression SEMICOL\n"
+"selection_statement -> IF OPARAN expression CPARAN statement | IF OPARAN expression CPARAN statement ELSE statement | SWITCH OPARAN expression CPARAN statement\n"
+"iteration_statement -> WHILE OPARAN expression CPARAN statement | DO statement WHILE OPARAN expression CPARAN SEMICOL | FOR OPARAN expression_statement expression_statement CPARAN statement | FOR OPARAN expression_statement expression_statement expression CPARAN statement | FOR OPARAN declaration expression_statement CPARAN statement | FOR OPARAN declaration expression_statement expression CPARAN statement\n"
+"jump_statement -> GOTO IDENTIFIER SEMICOL | CONTINUE SEMICOL | BREAK SEMICOL | RETURN SEMICOL | RETURN expression SEMICOL\n"
+"translation_unit -> external_declaration | translation_unit external_declaration\n"
+"external_declaration -> function_definition | declaration\n"
+"function_definition -> declaration_specifiers declarator declaration_list compound_statement | declaration_specifiers declarator compound_statement\n"
+"declaration_list -> declaration | declaration_list declaration\n";
+
   Grammar *grammar = parseGrammar(grammarString);
   printf("%s\n", getGrammarAsString(grammar));
+  /*
   LR1Parser *parser = createLR1Parser(grammar, tokenKindStr);
   printf("%s\n", getLR1ParserAsString(parser));
 
@@ -447,6 +516,7 @@ int main(int argc, char *argv[]) {
 
   ParseTreeNode *node = parse(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}");
   printf("%s\n", getParseTreeAsString(node));
+  */
 }
 
 #endif
