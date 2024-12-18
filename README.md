@@ -76,5 +76,4 @@ int main(int argc, char *argv[]) {
   assert(node->children[2]->children[0]->token.kind == RETURN);
   assert(strcmp(node->children[2]->children[0]->token.lexeme, "return") == 0);
 }
-`
-
+```

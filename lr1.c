@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <math.h>
 
 void closure(Grammar *grammar, LR1Item **items);
 
@@ -447,12 +446,9 @@ int getGoToState(GoToNode **table, char *nonterminal) {
 }
 
 char *intToString(int number) {
-  int n = log10(number) + 1;
-  int i;
-  char *numberArray = calloc(n, sizeof(char));
-  for (i = n - 1; i >= 0; --i, number /= 10)
-    numberArray[i] = (number % 10) + '0';
-  return numberArray;
+  char *result = calloc(32, sizeof(char));
+  sprintf(result, "%d", number);
+  return result;
 }
 
 bool cparseAccept(LR1Parser *parser, char *input) {
