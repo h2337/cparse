@@ -47,10 +47,12 @@ typedef struct LR1Parser {
   LR1State **collection;
   GoToNode ***goToTable;
   ActionNode ***actionTable;
+  const char * const *tokenKindStr;
 } LR1Parser;
 
-LR1Parser *createLR1Parser(Grammar *grammar);
+LR1Parser *createLR1Parser(Grammar *grammar, const char * const *tokenKindStr);
 char *getLR1ParserAsString(LR1Parser *parser);
+bool accept(LR1Parser *parser, char *input);
 
 #endif
 

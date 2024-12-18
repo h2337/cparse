@@ -1,6 +1,7 @@
 #include "lr1.h"
 #include "grammar.h"
 #include "util.h"
+#include "clex/clex.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -323,8 +324,9 @@ void createActionTable(LR1Parser *parser, Grammar *grammar) {
   }
 }
 
-LR1Parser *createLR1Parser(Grammar *grammar) {
+LR1Parser *createLR1Parser(Grammar *grammar, const char * const *tokenKindStr) {
   LR1Parser *parser = makeParser();
+  parser->tokenKindStr = tokenKindStr;
   createCollection(parser, grammar);
   createGoToTable(parser, grammar);
   createActionTable(parser, grammar);
@@ -383,5 +385,14 @@ char *getLR1ParserAsString(LR1Parser *parser) {
     }
   }
   return result;
+}
+
+bool accept(LR1Parser *parser, char *input) {
+  clexInit(input);
+  Token token;
+  while ((token = clex()).kind != 0) {
+
+  }
+  return true;
 }
 
