@@ -28,6 +28,24 @@ bool isNonTerminal(Grammar *grammar, char *value) {
   return false;
 }
 
+char **computeFirstByIndex(Grammar *grammar, char **strings, int index) {
+  char **result = calloc(1024, sizeof(char *));
+  if (index == getValuesLength(strings))
+      return result;
+  if (inArray(grammar->terminals, strings[index]) || strcmp(strings[index], "#") == 0) {
+    addCharPtrToArray(result, strings[index]);
+    return result;
+  }
+  if (inArray(grammar->nonterminals, strings[index]))
+    addAllCharPtrToArrayUnique(result, findValuesInSet(grammar->first, strings[index]));
+  if (inArray(result, "#"))
+    if (index != getValuesLength(strings) - 1) {
+      removeCharPtrFromArray(result, "#");
+      addAllCharPtrToArrayUnique(result, computeFirstByIndex(grammar, strings, index + 1));
+    }
+  return result;
+}
+
 void closure(Grammar *grammar, LR1Item **items) {
   bool changed = false;
   do {
@@ -39,7 +57,7 @@ void closure(Grammar *grammar, LR1Item **items) {
           if (items[i]->dot == getValuesLength(items[i]->right) - 1) {
             addAllCharPtrToArrayUnique(lookaheads, items[i]->lookaheads);
           } else {
-
+            char **firstSet = computeFirstByIndex(grammar, items[i]->right, items[i]->dot + 1);
           }
         }
       }
