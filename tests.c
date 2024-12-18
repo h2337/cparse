@@ -20,6 +20,16 @@ int main(int argc, char *argv[]) {
                           "Operator -> write ( Variable )\n";
   grammar = parseGrammar(grammarString2);
   printf("%s\n", getGrammarAsString(grammar));
+
+  printf("\n");
+
+  char grammarString3[] = "P -> E\n"
+                          "E -> E + T\n"
+                          "E -> T\n"
+                          "T -> id ( E )\n"
+                          "T -> id\n";
+  grammar = parseGrammar(grammarString3);
+  printf("%s\n", getGrammarAsString(grammar));
 }
 
 #endif

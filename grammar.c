@@ -102,6 +102,7 @@ void addToSetItem(SetItem *setItem, char *value) {
 }
 
 void addAllToSet(SetItem **set, char *key, char **values) {
+  if (!values) return;
   for (int i = 0; i < 1024; i++)
     if (values[i])
       addToSet(set, key, values[i]);
@@ -206,7 +207,8 @@ void computeFirst(Grammar *grammar, char *nonterminal) {
           addToSet(grammar->first, nonterminal, grammar->rules[j]->right[0]);
         } else if (inArray(grammar->nonterminals, grammar->rules[j]->right[0])) {
           int count = 0;
-          computeFirst(grammar, grammar->rules[j]->right[count]);
+          if (strcmp(grammar->rules[j]->left, grammar->rules[j]->right[count]) != 0)
+            computeFirst(grammar, grammar->rules[j]->right[count]);
           if (!inSet(grammar->first, grammar->rules[j]->right[count], "#")) {
             addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[0]));
           } else {
