@@ -10,8 +10,8 @@ void closure(Grammar *grammar, LR1Item **items);
 LR1Parser *makeParser() {
   LR1Parser *parser = calloc(1, sizeof(LR1Parser));
   parser->collection = calloc(1024, sizeof(LR1State *));
-  parser->goToTable = calloc(1024, sizeof(GoToNode *));
-  parser->actionTable = calloc(1024, sizeof(ActionNode *));
+  parser->goToTable = calloc(1024, sizeof(GoToNode **));
+  parser->actionTable = calloc(1024, sizeof(ActionNode **));
   return parser;
 }
 
@@ -251,26 +251,37 @@ int getIndexOfState(LR1State **collection, LR1State *state) {
 }
 
 void createGoToTable(LR1Parser *parser, Grammar *grammar) {
-  for (int i = 0; i < 1024; i++)
-    if (parser->collection[i])
-      for (int j = 0; j < 1024; j++)
-        if (parser->collection[i]->transitions[j])
-          if (isNonTerminal(grammar, parser->collection[i]->transitions[j]->value))
-            addGoToNode(parser->goToTable, makeGoToNode(parser->collection[i]->transitions[j]->value, getIndexOfState(parser->collection, parser->collection[i]->transitions[j]->state)));
-}
-
-void createActionTable(LR1Parser *parser, Grammar *grammar) {
+  for (int i = 0; i < 1024; i++) {
+    if (parser->collection[i]) {
+      parser->goToTable[i] = calloc(1024, sizeof(GoToNode *));
+    }
+  }
   for (int i = 0; i < 1024; i++) {
     if (parser->collection[i]) {
       for (int j = 0; j < 1024; j++) {
         if (parser->collection[i]->transitions[j]) {
-          if (!isNonTerminal(grammar, parser->collection[i]->transitions[j]->value)) {
-            addActionNode(parser->actionTable, makeActionNode(parser->collection[i]->transitions[j]->value, SHIFT, getIndexOfState(parser->collection, parser->collection[i]->transitions[j]->state)));
+          if (isNonTerminal(grammar, parser->collection[i]->transitions[j]->value)) {
+            addGoToNode(parser->goToTable[i], makeGoToNode(parser->collection[i]->transitions[j]->value, getIndexOfState(parser->collection, parser->collection[i]->transitions[j]->state)));
           }
         }
       }
     }
   }
+}
+
+void createActionTable(LR1Parser *parser, Grammar *grammar) {
+  for (int i = 0; i < 1024; i++) {
+    if (parser->goToTable[i]) {
+      parser->actionTable[i] = calloc(1024, sizeof(ActionNode *));
+    }
+  }
+  for (int i = 0; i < 1024; i++)
+    if (parser->collection[i])
+      for (int j = 0; j < 1024; j++)
+        if (parser->collection[i]->transitions[j])
+          if (!isNonTerminal(grammar, parser->collection[i]->transitions[j]->value))
+            addActionNode(parser->actionTable[i], makeActionNode(parser->collection[i]->transitions[j]->value, SHIFT, getIndexOfState(parser->collection, parser->collection[i]->transitions[j]->state)));
+  // TODO
 }
 
 LR1Parser *createLR1Parser(Grammar *grammar) {
@@ -314,14 +325,22 @@ char *getLR1ParserAsString(LR1Parser *parser) {
   sprintf(result + strlen(result), "GoTo table:\n");
   for (int i = 0; i < 1024; i++) {
     if (parser->goToTable[i]) {
-      sprintf(result + strlen(result), "%s -> %d\n", parser->goToTable[i]->nonterminal, parser->goToTable[i]->state);
+      for (int j = 0; j < 1024; j++) {
+        if (parser->goToTable[i][j]) {
+          sprintf(result + strlen(result), "%d %s -> %d\n", i, parser->goToTable[i][j]->nonterminal, parser->goToTable[i][j]->state);
+        }
+      }
     }
   }
   sprintf(result + strlen(result), "\n");
   sprintf(result + strlen(result), "Action table:\n");
   for (int i = 0; i < 1024; i++) {
     if (parser->actionTable[i]) {
-      sprintf(result + strlen(result), "%s -> %d %d\n", parser->actionTable[i]->terminal, parser->actionTable[i]->action->type, parser->actionTable[i]->action->operand);
+      for (int j = 0; j < 1024; j++) {
+        if (parser->actionTable[i][j]) {
+          sprintf(result + strlen(result), "%d %s -> %d %d\n", i, parser->actionTable[i][j]->terminal, parser->actionTable[i][j]->action->type, parser->actionTable[i][j]->action->operand);
+        }
+      }
     }
   }
   return result;
