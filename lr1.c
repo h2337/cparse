@@ -1,6 +1,8 @@
 #include "lr1.h"
 #include "grammar.h"
+#include "util.h"
 #include <stdlib.h>
+#include <string.h>
 
 LR1Parser *makeParser() {
   LR1Parser *parser = calloc(1, sizeof(LR1Parser));
@@ -19,8 +21,25 @@ LR1Item *makeLR1Item(char *left, char **right, int dot, char **lookaheads) {
   return item;
 }
 
+bool isNonTerminal(Grammar *grammar, char *value) {
+  for (int i = 0; i < 1024; i++)
+    if (grammar->nonterminals[i] && strcmp(grammar->nonterminals[i], value) == 0)
+      return true;
+  return false;
+}
+
 void closure(Grammar *grammar, LR1Item **items) {
-  return;
+  bool changed = false;
+  do {
+    changed = false;
+    for (int i = 0; i < 1024; i++) {
+      if (items[i]) {
+        if (items[i]->dot != getValuesLength(items[i]->right) && isNonTerminal(grammar, items[i]->right[items[i]->dot])) {
+          // TODO
+        }
+      }
+    }
+  } while (changed);
 }
 
 LR1State *makeLR1State(Grammar *grammar, LR1Item **items) {
