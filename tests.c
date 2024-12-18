@@ -532,53 +532,23 @@ int main(int argc, char *argv[]) {
 // Create an enum for token types
 typedef enum TokenKind {
   INT,
-  OPARAN,
-  CPARAN,
-  OSQUAREBRACE,
-  CSQUAREBRACE,
-  OCURLYBRACE,
-  CCURLYBRACE,
-  COMMA,
-  CHAR,
-  STAR,
   RETURN,
   SEMICOL,
-  CONSTANT,
   IDENTIFIER,
 } TokenKind;
 
 // Provide a string representation for each token type to be used in the grammar
 const char * const tokenKindStr[] = {
   [INT] = "INT",
-  [OPARAN] = "OPARAN",
-  [CPARAN] = "CPARAN",
-  [OSQUAREBRACE] = "OSQUAREBRACE",
-  [CSQUAREBRACE] = "CSQUAREBRACE",
-  [OCURLYBRACE] = "OCURLYBRACE",
-  [CCURLYBRACE] = "CCURLYBRACE",
-  [COMMA] = "COMMA",
-  [CHAR] = "CHAR",
-  [STAR] = "STAR",
   [RETURN] = "RETURN",
   [SEMICOL] = "SEMICOL",
-  [CONSTANT] = "CONSTANT",
   [IDENTIFIER] = "IDENTIFIER",
 };
 
 int main(int argc, char *argv[]) {
   // Register your token types with `clex`
   clexRegisterKind("int", INT);
-  clexRegisterKind("\\(", OPARAN);
-  clexRegisterKind("\\)", CPARAN);
-  clexRegisterKind("\\[|<:", OSQUAREBRACE);
-  clexRegisterKind("\\]|:>", CSQUAREBRACE);
-  clexRegisterKind("{|<%", OCURLYBRACE);
-  clexRegisterKind("}|%>", CCURLYBRACE);
-  clexRegisterKind(",", COMMA);
-  clexRegisterKind("char", CHAR);
-  clexRegisterKind("\\*", STAR);
   clexRegisterKind("return", RETURN);
-  clexRegisterKind("[1-9][0-9]*([uU])?([lL])?([lL])?", CONSTANT);
   clexRegisterKind(";", SEMICOL);
   clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
 
