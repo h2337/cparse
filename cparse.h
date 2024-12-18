@@ -73,6 +73,8 @@ typedef struct LR1Parser {
   const char * const *tokenKindStr;
 } LR1Parser;
 
+typedef LR1Parser LALR1Parser;
+
 typedef struct ParseTreeNode ParseTreeNode;
 
 typedef struct ParseTreeNode {
@@ -83,6 +85,7 @@ typedef struct ParseTreeNode {
 
 Grammar *cparseGrammar(char *grammarString);
 LR1Parser *cparseCreateLR1Parser(Grammar *grammar, const char * const *tokenKindStr);
+LALR1Parser *cparseCreateLALR1Parser(Grammar *grammar, const char * const *tokenKindStr);
 bool cparseAccept(LR1Parser *parser, char *input);
 ParseTreeNode *cparse(LR1Parser *parser, char *input);
 

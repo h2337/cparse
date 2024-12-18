@@ -9,11 +9,11 @@
 
 > :warning: cparse is still under development and code is unpolished.
 
-cparse is an LR(1) parser generator for C.
+cparse is an LR(1) and LALR(1) parser generator for C.
 
 cparse uses [`clex`](https://github.com/jafarlihi/clex) lexer generator for lexical analysis purposes.
 
-Note that LR(1) parsers are memory-intensive (and there are memory leaks...), so something like full C grammar can require up to 4GBs of free RAM.
+Note that LR(1) parsers are memory-intensive (and there are memory leaks...), so something like full C grammar can require up to 4GBs of free RAM. If you don't have RAM to spare then use the LALR(1) parser, which also happens to get constructed faster but might not support some of the grammars that LR(1) does (though in practice most programming language grammars are LALR(1)-compatible).
 
 ## Example
 
@@ -51,8 +51,11 @@ int main(int argc, char *argv[]) {
 
   // Parse your grammar
   Grammar *grammar = cparseGrammar(grammarString);
-  // Construct an LR(1) parser
-  LR1Parser *parser = cparseCreateLR1Parser(grammar, tokenKindStr);
+  // Construct an LALR(1) parser
+  LALR1Parser *parser = cparseCreateLALR1Parser(grammar, tokenKindStr);
+
+  // Or construct an LR(1) parser
+  //LR1Parser *parser = cparseCreateLR1Parser(grammar, tokenKindStr);
 
   // Test if given input is valid within the grammar
   assert(cparseAccept(parser, "return id1;") == true);
