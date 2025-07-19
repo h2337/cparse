@@ -5,6 +5,8 @@
 #include <string.h>
 #include <stdio.h>
 
+void closure(Grammar *grammar, LR1Item **items);
+
 LR1Parser *makeParser() {
   LR1Parser *parser = calloc(1, sizeof(LR1Parser));
   parser->collection = calloc(1024, sizeof(LR1State *));
@@ -20,6 +22,21 @@ LR1Item *makeLR1Item(char *left, char **right, int dot, char **lookaheads) {
   item->dot = dot;
   item->lookaheads = lookaheads;
   return item;
+}
+
+LR1State *makeLR1State(Grammar *grammar, LR1Item **items) {
+  LR1State *state = calloc(1, sizeof(LR1State));
+  state->items = items;
+  state->transitions = calloc(1024, sizeof(LR1Transition *));
+  closure(grammar, state->items);
+  return state;
+}
+
+LR1Transition *makeTransition(char *value, LR1State *state) {
+  LR1Transition *transition = calloc(1, sizeof(LR1Transition));
+  transition->value = value;
+  transition->state = state;
+  return transition;
 }
 
 bool isNonTerminal(Grammar *grammar, char *value) {
@@ -61,6 +78,22 @@ void addItem(LR1Item **items, LR1Item *item) {
   for (int i = 0; i < 1024; i++)
     if (!items[i]) {
       items[i] = item;
+      break;
+    }
+}
+
+void addState(LR1State **states, LR1State *state) {
+  for (int i = 0; i < 1024; i++)
+    if (!states[i]) {
+      states[i] = state;
+      break;
+    }
+}
+
+void addTransition(LR1Transition **transitions, LR1Transition *transition) {
+  for (int i = 0; i < 1024; i++)
+    if (!transitions[i]) {
+      transitions[i] = transition;
       break;
     }
 }
@@ -118,12 +151,18 @@ void closure(Grammar *grammar, LR1Item **items) {
   } while (changed);
 }
 
-LR1State *makeLR1State(Grammar *grammar, LR1Item **items) {
-  LR1State *state = calloc(1, sizeof(LR1State));
-  state->items = items;
-  state->transitions = calloc(1024, sizeof(LR1Transition *));
-  closure(grammar, state->items);
-  return state;
+bool inArrayLR1Item(LR1Item **array, LR1Item *item) {
+  for (int i = 0; i < 1024; i++)
+    if (array[i] && array[i]->dot == item->dot && strcmp(array[i]->left, item->left) == 0 && isArrayEqual(array[i]->right, item->right) && isArrayEqual(array[i]->lookaheads, item->lookaheads))
+      return true;
+  return false;
+}
+
+bool arrayContainsAllLR1Items(LR1Item **a, LR1Item **b) {
+  for (int i = 0; i < 1024; i++)
+    if (b[i] && !inArrayLR1Item(a, b[i]))
+      return false;
+  return true;
 }
 
 void createCollection(LR1Parser *parser, Grammar *grammar) {
@@ -134,6 +173,41 @@ void createCollection(LR1Parser *parser, Grammar *grammar) {
   startItems[0] = makeLR1Item(firstRule->left, firstRule->right, 0, startLookahead);
   LR1State *startState = makeLR1State(grammar, startItems);
   parser->collection[0] = startState;
+  for (int i = 0; i < 1024; i++) {
+    if (parser->collection[i]) {
+      char **strings = calloc(1024, sizeof(char *));
+      for (int j = 0; j < 1024; j++)
+        if (parser->collection[i]->items[j])
+          if (parser->collection[i]->items[j]->right[parser->collection[i]->items[j]->dot])
+            addCharPtrToArray(strings, parser->collection[i]->items[j]->right[parser->collection[i]->items[j]->dot]);
+      for (int j = 0; j < 1024; j++) {
+        if (strings[j]) {
+          LR1Item **items = calloc(1024, sizeof(LR1Item *));
+          for (int x = 0; x < 1024; x++) {
+            if (parser->collection[i]->items[x]) {
+              if (parser->collection[i]->items[x]->right[parser->collection[i]->items[x]->dot] && strcmp(parser->collection[i]->items[x]->right[parser->collection[i]->items[x]->dot], strings[j]) == 0) {
+                addItem(items, makeLR1Item(parser->collection[i]->items[x]->left, parser->collection[i]->items[x]->right, parser->collection[i]->items[x]->dot + 1, parser->collection[i]->items[x]->lookaheads));
+              }
+            }
+          }
+          LR1State *state = makeLR1State(grammar, items);
+          bool exists = false;
+          for (int x = 0; x < 1024; x++) {
+            if (parser->collection[x]) {
+              if (arrayContainsAllLR1Items(parser->collection[x]->items, state->items) && arrayContainsAllLR1Items(state->items, parser->collection[x]->items)) {
+                exists = true;
+                addTransition(parser->collection[i]->transitions, makeTransition(strings[j], parser->collection[x]));
+              }
+            }
+          }
+          if (!exists) {
+            addState(parser->collection, state);
+            addTransition(parser->collection[i]->transitions, makeTransition(strings[j], state));
+          }
+        }
+      }
+    }
+  }
 }
 
 LR1Parser *createLR1Parser(Grammar *grammar) {
@@ -146,6 +220,7 @@ int getIndexOfState(LR1State **collection, LR1State *state) {
   for (int i = 0; i < 1024; i++)
     if (collection[i] && collection[i] == state)
       return i;
+  return -1;
 }
 
 char *getCharPtrArrayAsString(char **array) {

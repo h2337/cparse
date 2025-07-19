@@ -66,12 +66,12 @@ int main(int argc, char *argv[]) {
   printf("\n");
 
   LR1Parser *parser2 = createLR1Parser(grammar2);
-  printf("%s\n", getLR1ParserAsString(parser2));
+  //printf("%s\n", getLR1ParserAsString(parser2));
 
   printf("\n");
 
   LR1Parser *parser3 = createLR1Parser(grammar3);
-  printf("%s\n", getLR1ParserAsString(parser3));
+  //printf("%s\n", getLR1ParserAsString(parser3));
 }
 
 #endif
