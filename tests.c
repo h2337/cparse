@@ -1,4 +1,4 @@
-#ifdef TEST_CPARSE
+#ifdef TEST_CPARSE1
 
 #include "grammar.h"
 #include "lr1.h"
@@ -60,18 +60,88 @@ int main(int argc, char *argv[]) {
 
   printf("\n");
 
-  LR1Parser *parser1 = createLR1Parser(grammar1);
+  LR1Parser *parser1 = createLR1Parser(grammar1, NULL);
   printf("%s\n", getLR1ParserAsString(parser1));
 
   printf("\n");
 
-  LR1Parser *parser2 = createLR1Parser(grammar2);
+  LR1Parser *parser2 = createLR1Parser(grammar2, NULL);
   printf("%s\n", getLR1ParserAsString(parser2));
 
   printf("\n");
 
-  LR1Parser *parser3 = createLR1Parser(grammar3);
+  LR1Parser *parser3 = createLR1Parser(grammar3, NULL);
   printf("%s\n", getLR1ParserAsString(parser3));
+}
+
+#endif
+
+#ifdef TEST_CPARSE2
+
+#include "grammar.h"
+#include "lr1.h"
+#include "clex/clex.h"
+#include <stdio.h>
+#include <assert.h>
+#include <string.h>
+
+typedef enum TokenKind {
+  INT,
+  OPARAN,
+  CPARAN,
+  OSQUAREBRACE,
+  CSQUAREBRACE,
+  OCURLYBRACE,
+  CCURLYBRACE,
+  COMMA,
+  CHAR,
+  STAR,
+  RETURN,
+  SEMICOL,
+  CONSTANT,
+  IDENTIFIER,
+} TokenKind;
+
+const char * const tokenKindStr[] = {
+  [INT] = "INT",
+  [OPARAN] = "OPARAN",
+  [CPARAN] = "CPARAN",
+  [OSQUAREBRACE] = "OSQUAREBRACE",
+  [CSQUAREBRACE] = "CSQUAREBRACE",
+  [OCURLYBRACE] = "OCURLYBRACE",
+  [CCURLYBRACE] = "CCURLYBRACE",
+  [COMMA] = "COMMA",
+  [CHAR] = "CHAR",
+  [STAR] = "STAR",
+  [RETURN] = "RETURN",
+  [SEMICOL] = "SEMICOL",
+  [CONSTANT] = "CONSTANT",
+  [IDENTIFIER] = "IDENTIFIER",
+};
+
+int main(int argc, char *argv[]) {
+  clexRegisterKind("int", INT);
+  clexRegisterKind("\\(", OPARAN);
+  clexRegisterKind("\\)", CPARAN);
+  clexRegisterKind("\\[|<:", OSQUAREBRACE);
+  clexRegisterKind("\\]|:>", CSQUAREBRACE);
+  clexRegisterKind("{|<%", OCURLYBRACE);
+  clexRegisterKind("}|%>", CCURLYBRACE);
+  clexRegisterKind(",", COMMA);
+  clexRegisterKind("char", CHAR);
+  clexRegisterKind("\\*", STAR);
+  clexRegisterKind("return", RETURN);
+  clexRegisterKind("[1-9][0-9]*([uU])?([lL])?([lL])?", CONSTANT);
+  clexRegisterKind(";", SEMICOL);
+  clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
+
+  char grammarString[] = "S -> A IDENTIFIER SEMICOL\nA -> RETURN\n";
+  Grammar *grammar = parseGrammar(grammarString);
+  printf("%s\n", getGrammarAsString(grammar));
+  LR1Parser *parser = createLR1Parser(grammar, tokenKindStr);
+  printf("%s\n", getLR1ParserAsString(parser));
+
+  printf("%d\n", accept(parser, "return id1;"));
 }
 
 #endif
