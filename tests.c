@@ -9,15 +9,15 @@
 char *grammar1StringResult = "Start nonterminal: S\n"
 "Terminals: b a\n"
 "Non-terminals: cparseStart S A B\n"
-"Rules: cparseStart -> S && S -> A A && A -> a A && A -> b && B -> #\n"
-"First set: A: [a, b] S: [a, b] cparseStart: [a, b] B: [#]\n"
+"Rules: cparseStart -> S && S -> A A && A -> a A && A -> b && B -> epsilon\n"
+"First set: A: [a, b] S: [a, b] cparseStart: [a, b] B: [epsilon]\n"
 "Follow set: cparseStart: [$] S: [$] A: [a, b, $] B: []";
 
 char *grammar2StringResult = "Start nonterminal: Program\n"
 "Terminals: var write begin ( end ) ; identifier read\n"
 "Non-terminals: cparseStart Program Variables Variable Operators Operator\n"
-"Rules: cparseStart -> Program && Program -> var Variables begin Operators end && Variables -> Variable ; Variables && Variables -> # && Variable -> identifier && Operators -> Operator ; Operators && Operators -> # && Operator -> read ( Variable ) && Operator -> write ( Variable )\n"
-"First set: Program: [var] cparseStart: [var] Variable: [identifier] Variables: [identifier, #] Operator: [read, write] Operators: [read, write, #]\n"
+"Rules: cparseStart -> Program && Program -> var Variables begin Operators end && Variables -> Variable ; Variables && Variables -> epsilon && Variable -> identifier && Operators -> Operator ; Operators && Operators -> epsilon && Operator -> read ( Variable ) && Operator -> write ( Variable )\n"
+"First set: Program: [var] cparseStart: [var] Variable: [identifier] Variables: [identifier, epsilon] Operator: [read, write] Operators: [read, write, epsilon]\n"
 "Follow set: cparseStart: [$] Program: [$] Variables: [begin] Variable: [;, )] Operators: [end] Operator: [;]";
 
 char *grammar3StringResult = "Start nonterminal: P\n"
@@ -28,7 +28,7 @@ char *grammar3StringResult = "Start nonterminal: P\n"
 "Follow set: cparseStart: [$] P: [$] E: [$, +, )] T: [$, +, )]";
 
 int main(int argc, char *argv[]) {
-  char grammarString[] = "S -> A A\nA -> a A | b\nB -> #";
+  char grammarString[] = "S -> A A\nA -> a A | b\nB -> epsilon";
   Grammar *grammar1 = cparseGrammar(grammarString);
   printf("%s\n", getGrammarAsString(grammar1));
   assert(strcmp(getGrammarAsString(grammar1), grammar1StringResult) == 0);
@@ -37,10 +37,10 @@ int main(int argc, char *argv[]) {
 
   char grammarString2[] = "Program -> var Variables begin Operators end\n"
     "Variables -> Variable ; Variables\n"
-    "Variables -> #\n"
+    "Variables -> epsilon\n"
     "Variable -> identifier\n"
     "Operators -> Operator ; Operators\n"
-    "Operators -> #\n"
+    "Operators -> epsilon\n"
     "Operator -> read ( Variable )\n"
     "Operator -> write ( Variable )\n";
   Grammar *grammar2 = cparseGrammar(grammarString2);
