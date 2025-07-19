@@ -26,7 +26,6 @@ Note that LR(1) parsers are memory-intensive (and there are memory leaks...), so
 
 // Create an enum for token types
 typedef enum TokenKind {
-  INT,
   RETURN,
   SEMICOL,
   IDENTIFIER,
@@ -34,7 +33,6 @@ typedef enum TokenKind {
 
 // Provide a string representation for each token type to be used in the grammar
 const char * const tokenKindStr[] = {
-  [INT] = "INT",
   [RETURN] = "RETURN",
   [SEMICOL] = "SEMICOL",
   [IDENTIFIER] = "IDENTIFIER",
@@ -42,7 +40,6 @@ const char * const tokenKindStr[] = {
 
 int main(int argc, char *argv[]) {
   // Register your token types with `clex`
-  clexRegisterKind("int", INT);
   clexRegisterKind("return", RETURN);
   clexRegisterKind(";", SEMICOL);
   clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
