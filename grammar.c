@@ -134,7 +134,7 @@ void computeFirst(Grammar *grammar, char *nonterminal) {
           if (!inSet(grammar->first, grammar->rules[j]->right[count], "#")) {
             addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[0]));
           } else {
-            addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[0]));
+            addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[0])); // TODO: Minus epsilon?
             while (true) {
               computeFirst(grammar, grammar->rules[j]->right[++count]);
               addAllToSet(grammar->first, nonterminal, findValuesInSet(grammar->first, grammar->rules[j]->right[count]));
@@ -156,7 +156,7 @@ void computeFirstSet(Grammar *grammar) {
 }
 
 void computeFollow(Grammar *grammar, char *nonterminal) {
-  if (strcmp(nontemrinal, "cparseStart") == 0) {
+  if (strcmp(nonterminal, "cparseStart") == 0) {
     addToSet(grammar->follow, nonterminal, "$");
     return;
   }
