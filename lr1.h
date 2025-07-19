@@ -1,6 +1,8 @@
 #ifndef CPARSE_LR1_H
 #define CPARSE_LR1_H
 
+#include "grammar.h"
+
 typedef struct LR1Item {
   char **lookaheads;
   char *left;
@@ -19,6 +21,36 @@ typedef struct LR1State {
   LR1Item **items;
   LR1Transition **transitions;
 } LR1State;
+
+typedef struct GoToNode {
+  char *nonterminal;
+  int state;
+} GoToNode;
+
+typedef enum ActionType {
+  ACCEPT,
+  SHIFT,
+  REDUCE
+} ActionType;
+
+typedef struct Action {
+  ActionType type;
+  int operand;
+} Action;
+
+typedef struct ActionNode {
+  char *terminal;
+  Action *action;
+} ActionNode;
+
+typedef struct LR1Parser {
+  LR1State **collection;
+  GoToNode **gotoTable;
+  ActionNode **actionTable;
+} LR1Parser;
+
+LR1Parser *createLR1Parser(Grammar *grammar);
+char *getLR1ParserAsString(LR1Parser *parser);
 
 #endif
 
