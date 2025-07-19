@@ -397,12 +397,14 @@ char *peek(char **stack) {
   return result;
 }
 
-void pop(char **stack) {
+char *pop(char **stack) {
   for (int i = 0; i < 1024; i++)
     if (!stack[i]) {
+      char *value = stack[i - 1];
       stack[i - 1] = NULL;
-      break;
+      return value;
     }
+  return NULL;
 }
 
 ActionNode *getAction(ActionNode **table, const char *terminal) {
@@ -448,7 +450,6 @@ bool accept(LR1Parser *parser, char *input) {
     } else if (action->action->type == SHIFT) {
       addCharPtrToArray(stack, (char *)nextInput);
       addCharPtrToArray(stack, intToString(action->action->operand));
-      continue;
     } else if (action->action->type == REDUCE) {
       Rule *rule = parser->grammar->rules[action->action->operand];
       for (int i = 0; i < 2 * getValuesLength(rule->right); i++)
@@ -463,5 +464,73 @@ bool accept(LR1Parser *parser, char *input) {
     }
   }
   return false;
+}
+
+ParseTreeNode *parse(LR1Parser *parser, char *input) {
+  clexInit(input);
+  Token token;
+  char **stack = calloc(1024, sizeof(char *));
+  addCharPtrToArray(stack, "0");
+  bool lexNext = true;
+  while (true) {
+    if (lexNext)
+      token = clex();
+    lexNext = true;
+    int state = atoi(peek(stack));
+    const char *nextInput = token.kind ? parser->tokenKindStr[token.kind] : "$"; // TODO: Add $ only once
+    ActionNode *action = getAction(parser->actionTable[state], nextInput);
+    if (action == NULL) {
+      return NULL;
+    } else if (action->action->type == SHIFT) {
+      addCharPtrToArray(stack, (char *)nextInput);
+      addCharPtrToArray(stack, intToString(action->action->operand));
+    } else if (action->action->type == REDUCE) {
+      Rule *rule = parser->grammar->rules[action->action->operand];
+      for (int i = 0; i < 2 * getValuesLength(rule->right); i++)
+        pop(stack);
+      int nextState = atoi(peek(stack));
+      addCharPtrToArray(stack, rule->left);
+      int goToState = getGoToState(parser->goToTable[nextState], rule->left);
+      addCharPtrToArray(stack, intToString(goToState));
+      lexNext = false;
+    } else if (action->action->type == ACCEPT) {
+      return NULL; // TODO: Return PTN
+    }
+  }
+  return NULL;
+}
+
+ParseTreeNode *popParseTreeNode(ParseTreeNode **stack) {
+  for (int i = 0; i < 1024; i++)
+    if (!stack[i]) {
+      ParseTreeNode *value = stack[i - 1];
+      stack[i - 1] = NULL;
+      return value;
+    }
+  return NULL;
+}
+
+void addParseTreeNodePtrToArray(ParseTreeNode **array, ParseTreeNode *value) {
+  for (int i = 0; i < 1024; i++) {
+    if (!array[i]) {
+      array[i] = value;
+      break;
+    }
+  }
+}
+
+char *getParseTreeAsString(ParseTreeNode *node) {
+  char *result = calloc(100000, sizeof(char));
+  ParseTreeNode **stack = calloc(1024, sizeof(char *));
+  if (!node) return result;
+  addParseTreeNodePtrToArray(stack, node);
+  while (stack[0]) {
+    node = popParseTreeNode(stack);
+    sprintf(result + strlen(result), "%s\n", node->value);
+    for (int i = 0; i < 1024; i++)
+      if (node->children[i])
+        addParseTreeNodePtrToArray(stack, node->children[i]);
+  }
+  return result;
 }
 

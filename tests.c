@@ -142,6 +142,9 @@ int main(int argc, char *argv[]) {
   printf("%s\n", getLR1ParserAsString(parser));
 
   printf("%d\n", accept(parser, "return id1;"));
+
+  ParseTreeNode *node = parse(parser, "return id1;");
+  printf("%s\n", getParseTreeAsString(node));
 }
 
 #endif
