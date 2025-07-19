@@ -7,22 +7,22 @@
 #include <string.h>
 
 char *grammar1StringResult = "Start nonterminal: S\n"
-"Terminals: a b\n"
+"Terminals: b a\n"
 "Non-terminals: cparseStart S A B\n"
 "Rules: cparseStart -> S && S -> A A && A -> a A && A -> b && B -> #\n"
 "First set: A: [a, b] S: [a, b] cparseStart: [a, b] B: [#]\n"
 "Follow set: cparseStart: [$] S: [$] A: [a, b, $] B: []";
 
 char *grammar2StringResult = "Start nonterminal: Program\n"
-"Terminals: var begin end ; identifier ; read ( ) write ( )\n"
-"Non-terminals: cparseStart Program Variables Variables Variable Operators Operators Operator Operator\n"
+"Terminals: var write begin ( end ) ; identifier read\n"
+"Non-terminals: cparseStart Program Variables Variable Operators Operator\n"
 "Rules: cparseStart -> Program && Program -> var Variables begin Operators end && Variables -> Variable ; Variables && Variables -> # && Variable -> identifier && Operators -> Operator ; Operators && Operators -> # && Operator -> read ( Variable ) && Operator -> write ( Variable )\n"
 "First set: Program: [var] cparseStart: [var] Variable: [identifier] Variables: [identifier, #] Operator: [read, write] Operators: [read, write, #]\n"
 "Follow set: cparseStart: [$] Program: [$] Variables: [begin] Variable: [;, )] Operators: [end] Operator: [;]";
 
 char *grammar3StringResult = "Start nonterminal: P\n"
-"Terminals: + id ( ) id\n"
-"Non-terminals: cparseStart P E E T T\n"
+"Terminals: ) + ( id\n"
+"Non-terminals: cparseStart P E T\n"
 "Rules: cparseStart -> P && P -> E && E -> E + T && E -> T && T -> id ( E ) && T -> id\n"
 "First set: T: [id] E: [id] P: [id] cparseStart: [id]\n"
 "Follow set: cparseStart: [$] P: [$] E: [$, +, )] T: [$, +, )]";

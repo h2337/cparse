@@ -40,8 +40,16 @@ void addCharPtrToArray(char **array, char *value) {
 
 void removeCharPtrFromArray(char **array, char *value) {
   for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (array[i] && strcmp(array[i], value) == 0)
+    if (array[i] && strcmp(array[i], value) == 0) {
       array[i] = NULL;
+      for (int j = i + 1; j < ARRAY_CAPACITY; j++) {
+        if (!array[j] && array[j - 1]) {
+          array[i] = array[j - 1];
+          array[j - 1] = NULL;
+          i--;
+        }
+      }
+    }
 }
 
 void addToSet(SetItem **set, char *key, char *value) {

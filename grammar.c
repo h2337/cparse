@@ -127,7 +127,7 @@ Grammar *parseGrammar(char *grammarString) {
       addRuleToArray(grammar->rules, rule);
       addCharPtrToArray(grammar->nonterminals, "cparseStart");
     }
-    addCharPtrToArray(grammar->nonterminals, left);
+    addCharPtrToArrayUnique(grammar->nonterminals, left);
     char *right = strtok(NULL, "->");
     char *singleRight = strtok(right, "|");
     while (singleRight) {
@@ -135,7 +135,7 @@ Grammar *parseGrammar(char *grammarString) {
       char **singleRightWords = stringToWords(singleRight);
       for (int i = 0; i < ARRAY_CAPACITY; i++)
         if (singleRightWords[i] && strcmp(singleRightWords[i], "#") != 0)
-          addCharPtrToArray(grammar->terminals, singleRightWords[i]);
+          addCharPtrToArrayUnique(grammar->terminals, singleRightWords[i]);
       Rule *rule = makeRule();
       rule->left = left;
       rule->right = singleRightWords;
