@@ -35,7 +35,12 @@ void closure(Grammar *grammar, LR1Item **items) {
     for (int i = 0; i < 1024; i++) {
       if (items[i]) {
         if (items[i]->dot != getValuesLength(items[i]->right) && isNonTerminal(grammar, items[i]->right[items[i]->dot])) {
-          // TODO
+          char **lookaheads = calloc(1024, sizeof(char *));
+          if (items[i]->dot == getValuesLength(items[i]->right) - 1) {
+            addAllCharPtrToArrayUnique(lookaheads, items[i]->lookaheads);
+          } else {
+
+          }
         }
       }
     }
