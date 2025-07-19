@@ -3,6 +3,7 @@
 #include "util.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 LR1Parser *makeParser() {
   LR1Parser *parser = calloc(1, sizeof(LR1Parser));
@@ -31,7 +32,7 @@ bool isNonTerminal(Grammar *grammar, char *value) {
 char **computeFirstByIndex(Grammar *grammar, char **strings, int index) {
   char **result = calloc(1024, sizeof(char *));
   if (index == getValuesLength(strings))
-      return result;
+    return result;
   if (inArray(grammar->terminals, strings[index]) || strcmp(strings[index], "#") == 0) {
     addCharPtrToArray(result, strings[index]);
     return result;
@@ -46,6 +47,24 @@ char **computeFirstByIndex(Grammar *grammar, char **strings, int index) {
   return result;
 }
 
+bool equalLR0(LR1Item *a, LR1Item *b) {
+  if (a->dot != b->dot)
+    return false;
+  if (strcmp(a->left, b->left) != 0)
+    return false;
+  if (!isArrayEqual(a->right, b->right))
+    return false;
+  return true;
+}
+
+void addItem(LR1Item **items, LR1Item *item) {
+  for (int i = 0; i < 1024; i++)
+    if (!items[i]) {
+      items[i] = item;
+      break;
+    }
+}
+
 void closure(Grammar *grammar, LR1Item **items) {
   bool changed = false;
   do {
@@ -58,7 +77,41 @@ void closure(Grammar *grammar, LR1Item **items) {
             addAllCharPtrToArrayUnique(lookaheads, items[i]->lookaheads);
           } else {
             char **firstSet = computeFirstByIndex(grammar, items[i]->right, items[i]->dot + 1);
+            if (inArray(firstSet, "#")) {
+              removeCharPtrFromArray(firstSet, "#");
+              addAllCharPtrToArrayUnique(firstSet, items[i]->lookaheads);
+            }
+            addAllCharPtrToArrayUnique(lookaheads, firstSet);
           }
+          for (int j = 0; j < 1024; j++) {
+            if (grammar->rules[j] && strcmp(grammar->rules[j]->left, items[i]->right[items[i]->dot]) == 0) {
+              char **right = grammar->rules[j]->right;
+              int finish = 0;
+              if (getValuesLength(right) == 1 && strcmp(right[0], "#") == 0)
+                finish = 1;
+              char **newLookaheads = copyCharArray(lookaheads);
+              LR1Item *newItem = makeLR1Item(grammar->rules[j]->left, right, finish, newLookaheads);
+              bool found = false;
+              for (int x = 0; x < 1024; x++) {
+                if (items[x]) {
+                  if (equalLR0(items[x], newItem)) {
+                    if (!arrayContainsAll(items[x]->lookaheads, newLookaheads)) {
+                      addAllCharPtrToArrayUnique(items[x]->lookaheads, newLookaheads);
+                      changed = true;
+                    }
+                    found = true;
+                    break;
+                  }
+                }
+              }
+              if (!found) {
+                addItem(items, newItem);
+                changed = true;
+              }
+            }
+          }
+          if (changed)
+            break;
         }
       }
     }
@@ -89,7 +142,42 @@ LR1Parser *createLR1Parser(Grammar *grammar) {
   return parser;
 }
 
+int getIndexOfState(LR1State **collection, LR1State *state) {
+  for (int i = 0; i < 1024; i++)
+    if (collection[i] && collection[i] == state)
+      return i;
+}
+
+char *getCharPtrArrayAsString(char **array) {
+  char *result = calloc(10000, sizeof(char));
+  for (int i = 0; i < 1024; i++)
+    if (array[i])
+      sprintf(result + strlen(result), "%s, ", array[i]);
+  return result;
+}
+
 char *getLR1ParserAsString(LR1Parser *parser) {
-  return "LR1Parser";
+  char *result = calloc(100000, sizeof(char));
+  sprintf(result, "Collection:\n");
+  for (int i = 0; i < 1024; i++) {
+    if (parser->collection[i]) {
+      sprintf(result + strlen(result), "State %d:\n", i);
+      sprintf(result + strlen(result), "Items:\n");
+      for (int j = 0; j < 1024; j++) {
+        if (parser->collection[i]->items[j]) {
+          sprintf(result + strlen(result), "%s -> %s\n", parser->collection[i]->items[j]->left, getCharPtrArrayAsString(parser->collection[i]->items[j]->right));
+          sprintf(result + strlen(result), "Dot: %d\n", parser->collection[i]->items[j]->dot);
+          sprintf(result + strlen(result), "Lookaheads: %s\n", getCharPtrArrayAsString(parser->collection[i]->items[j]->lookaheads));
+        }
+      }
+      sprintf(result + strlen(result), "Transitions:\n");
+      for (int j = 0; j < 1024; j++) {
+        if (parser->collection[i]->transitions[j]) {
+          sprintf(result + strlen(result), "%s -> %d\n", parser->collection[i]->transitions[j]->value, getIndexOfState(parser->collection, parser->collection[i]->transitions[j]->state));
+        }
+      }
+    }
+  }
+  return result;
 }
 
