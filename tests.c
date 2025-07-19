@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 int main(int argc, char *argv[]) {
-  char grammarString[] = "S -> A A\nA -> a A | b";
+  char grammarString[] = "S -> A A\nA -> a A | b\nB -> #";
   Grammar *grammar = parseGrammar(grammarString);
   printf("%s\n", getGrammarAsString(grammar));
 }
