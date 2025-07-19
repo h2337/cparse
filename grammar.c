@@ -1,3 +1,4 @@
+#include "cparse.h"
 #include "grammar.h"
 #include "util.h"
 #include <string.h>
@@ -6,9 +7,9 @@
 
 Grammar *makeGrammar() {
   Grammar *grammar = calloc(1, sizeof(Grammar));
-  grammar->rules = calloc(1024, sizeof(Rule *));
-  grammar->terminals = calloc(1024, sizeof(char *));
-  grammar->nonterminals = calloc(1024, sizeof(char *));
+  grammar->rules = calloc(ARRAY_CAPACITY, sizeof(Rule *));
+  grammar->terminals = calloc(ARRAY_CAPACITY, sizeof(char *));
+  grammar->nonterminals = calloc(ARRAY_CAPACITY, sizeof(char *));
   grammar->first = makeSet();
   grammar->follow = makeSet();
   return grammar;
@@ -16,12 +17,12 @@ Grammar *makeGrammar() {
 
 Rule *makeRule() {
   Rule *rule = calloc(1, sizeof(Rule));
-  rule->right = calloc(1024, sizeof(char *));
+  rule->right = calloc(ARRAY_CAPACITY, sizeof(char *));
   return rule;
 }
 
 void addRuleToArray(Rule **array, Rule *value) {
-  for (int i = 0; i < 1024; i++) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
     if (!array[i]) {
       array[i] = value;
       break;
@@ -30,7 +31,7 @@ void addRuleToArray(Rule **array, Rule *value) {
 }
 
 void computeFirst(Grammar *grammar, char *nonterminal) {
-  for (int j = 0; j < 1024; j++) {
+  for (int j = 0; j < ARRAY_CAPACITY; j++) {
     if (grammar->rules[j] && strcmp(grammar->rules[j]->left, nonterminal) == 0) {
       if (grammar->rules[j]->right[0]) {
         if (strcmp(grammar->rules[j]->right[0], "#") == 0) {
@@ -59,27 +60,27 @@ void computeFirst(Grammar *grammar, char *nonterminal) {
 }
 
 void computeFirstSet(Grammar *grammar) {
-  for (int i = 0; i < 1024; i++)
+  for (int i = 0; i < ARRAY_CAPACITY; i++)
     if (grammar->nonterminals[i])
       computeFirst(grammar, grammar->nonterminals[i]);
 }
 
 void computeFollowSet(Grammar *grammar) {
-  for (int i = 0; i < 1024; i++)
+  for (int i = 0; i < ARRAY_CAPACITY; i++)
     if (grammar->nonterminals[i] && !isKeyInSet(grammar->follow, grammar->nonterminals[i]))
       createSetItem(grammar->follow, grammar->nonterminals[i]);
   while (true) {
     bool hasChanged = false;
-    for (int i = 0; i < 1024; i++) {
+    for (int i = 0; i < ARRAY_CAPACITY; i++) {
       if (grammar->nonterminals[i]) {
         char *nonterminal = grammar->nonterminals[i];
         if (strcmp(nonterminal, "cparseStart") == 0) {
           addToSet(grammar->follow, nonterminal, "$");
           continue;
         }
-        for (int i = 0; i < 1024; i++) {
+        for (int i = 0; i < ARRAY_CAPACITY; i++) {
           if (grammar->rules[i]) {
-            for (int j = 0; j < 1024; j++) {
+            for (int j = 0; j < ARRAY_CAPACITY; j++) {
               if (grammar->rules[i]->right[j] && strcmp(grammar->rules[i]->right[j], nonterminal) == 0) {
                 SetItem *first = NULL;
                 if (j == getValuesLength(grammar->rules[i]->right) - 1) {
@@ -90,7 +91,7 @@ void computeFollowSet(Grammar *grammar) {
                     first = copySetItem(rightFirst); // TODO: Why copy?
                   else {
                     first = calloc(1, sizeof(SetItem));
-                    first->values = calloc(1024, sizeof(SetItem));
+                    first->values = calloc(ARRAY_CAPACITY, sizeof(SetItem));
                     first->values[0] = grammar->rules[i]->right[j + 1];
                   }
                   if (inSetItem(first, "#")) {
@@ -132,7 +133,7 @@ Grammar *parseGrammar(char *grammarString) {
     while (singleRight) {
       singleRight = trim(singleRight);
       char **singleRightWords = stringToWords(singleRight);
-      for (int i = 0; i < 1024; i++)
+      for (int i = 0; i < ARRAY_CAPACITY; i++)
         if (singleRightWords[i] && strcmp(singleRightWords[i], "#") != 0)
           addCharPtrToArray(grammar->terminals, singleRightWords[i]);
       Rule *rule = makeRule();
@@ -143,7 +144,7 @@ Grammar *parseGrammar(char *grammarString) {
     }
     grammarStringPtr = rest;
   }
-  for (int i = 0; i < 1024; i++)
+  for (int i = 0; i < ARRAY_CAPACITY; i++)
     if (grammar->nonterminals[i])
       removeCharPtrFromArray(grammar->terminals, grammar->nonterminals[i]);
   computeFirstSet(grammar);
@@ -156,25 +157,25 @@ char *getGrammarAsString(Grammar *grammar) {
   sprintf(result, "Start nonterminal: ");
   sprintf(result + strlen(result), grammar->start);
   sprintf(result + strlen(result), "\nTerminals:");
-  for (int i = 0; i < 1024; i++) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
     if (grammar->terminals[i]) {
       sprintf(result + strlen(result), " ");
       sprintf(result + strlen(result), grammar->terminals[i]);
     }
   }
   sprintf(result + strlen(result), "\nNon-terminals:");
-  for (int i = 0; i < 1024; i++) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
     if (grammar->nonterminals[i]) {
       sprintf(result + strlen(result), " ");
       sprintf(result + strlen(result), grammar->nonterminals[i]);
     }
   }
   sprintf(result + strlen(result), "\nRules: ");
-  for (int i = 0; i < 1024; i++) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
     if (grammar->rules[i]) {
       sprintf(result + strlen(result), grammar->rules[i]->left);
       sprintf(result + strlen(result), " ->");
-      for (int j = 0; j < 1024; j++) {
+      for (int j = 0; j < ARRAY_CAPACITY; j++) {
         if (grammar->rules[i]->right[j]) {
           sprintf(result + strlen(result), " ");
           sprintf(result + strlen(result), grammar->rules[i]->right[j]);
@@ -185,12 +186,12 @@ char *getGrammarAsString(Grammar *grammar) {
   }
   result[strlen(result) - 4] = '\0';
   sprintf(result + strlen(result), "\nFirst set:");
-  for (int i = 0; i < 1024; i++) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
     if (grammar->first[i]) {
       sprintf(result + strlen(result), " ");
       sprintf(result + strlen(result), grammar->first[i]->key);
       sprintf(result + strlen(result), ": [");
-      for (int j = 0; j < 1024; j++) {
+      for (int j = 0; j < ARRAY_CAPACITY; j++) {
         if (grammar->first[i]->values[j]) {
           sprintf(result + strlen(result), grammar->first[i]->values[j]);
           sprintf(result + strlen(result), ", ");
@@ -201,13 +202,13 @@ char *getGrammarAsString(Grammar *grammar) {
     }
   }
   sprintf(result + strlen(result), "\nFollow set:");
-  for (int i = 0; i < 1024; i++) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
     bool empty = true;
     if (grammar->follow[i]) {
       sprintf(result + strlen(result), " ");
       sprintf(result + strlen(result), grammar->follow[i]->key);
       sprintf(result + strlen(result), ": [");
-      for (int j = 0; j < 1024; j++) {
+      for (int j = 0; j < ARRAY_CAPACITY; j++) {
         if (grammar->follow[i]->values[j]) {
           empty = false;
           sprintf(result + strlen(result), grammar->follow[i]->values[j]);
