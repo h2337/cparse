@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 void closure(Grammar *grammar, LR1Item **items);
 
@@ -326,6 +327,7 @@ void createActionTable(LR1Parser *parser, Grammar *grammar) {
 
 LR1Parser *createLR1Parser(Grammar *grammar, const char * const *tokenKindStr) {
   LR1Parser *parser = makeParser();
+  parser->grammar = grammar;
   parser->tokenKindStr = tokenKindStr;
   createCollection(parser, grammar);
   createGoToTable(parser, grammar);
@@ -387,12 +389,79 @@ char *getLR1ParserAsString(LR1Parser *parser) {
   return result;
 }
 
+char *peek(char **stack) {
+  char *result;
+  for (int i = 0; i < 1024; i++)
+    if (stack[i]) result = stack[i];
+    else return result;
+  return result;
+}
+
+void pop(char **stack) {
+  for (int i = 0; i < 1024; i++)
+    if (!stack[i]) {
+      stack[i - 1] = NULL;
+      break;
+    }
+}
+
+ActionNode *getAction(ActionNode **table, const char *terminal) {
+  for (int i = 0; i < 1024; i++)
+    if (table[i])
+      if (strcmp(table[i]->terminal, terminal) == 0)
+        return table[i];
+  return NULL;
+}
+
+int getGoToState(GoToNode **table, char *nonterminal) {
+  for (int i = 0; i < 1024; i++)
+    if (table[i])
+      if (strcmp(table[i]->nonterminal, nonterminal) == 0)
+        return table[i]->state;
+  return -1;
+}
+
+char *intToString(int number) {
+  int n = log10(number) + 1;
+  int i;
+  char *numberArray = calloc(n, sizeof(char));
+  for (i = n - 1; i >= 0; --i, number /= 10)
+    numberArray[i] = (number % 10) + '0';
+  return numberArray;
+}
+
 bool accept(LR1Parser *parser, char *input) {
   clexInit(input);
   Token token;
-  while ((token = clex()).kind != 0) {
-
+  char **stack = calloc(1024, sizeof(char *));
+  addCharPtrToArray(stack, "0");
+  bool lexNext = true;
+  while (true) {
+    if (lexNext)
+      token = clex();
+    lexNext = true;
+    int state = atoi(peek(stack));
+    const char *nextInput = token.kind ? parser->tokenKindStr[token.kind] : "$"; // TODO: Add $ only once
+    ActionNode *action = getAction(parser->actionTable[state], nextInput);
+    if (action == NULL) {
+      return false;
+    } else if (action->action->type == SHIFT) {
+      addCharPtrToArray(stack, (char *)nextInput);
+      addCharPtrToArray(stack, intToString(action->action->operand));
+      continue;
+    } else if (action->action->type == REDUCE) {
+      Rule *rule = parser->grammar->rules[action->action->operand];
+      for (int i = 0; i < 2 * getValuesLength(rule->right); i++)
+        pop(stack);
+      int nextState = atoi(peek(stack));
+      addCharPtrToArray(stack, rule->left);
+      int goToState = getGoToState(parser->goToTable[nextState], rule->left);
+      addCharPtrToArray(stack, intToString(goToState));
+      lexNext = false;
+    } else if (action->action->type == ACCEPT) {
+      return true;
+    }
   }
-  return true;
+  return false;
 }
 

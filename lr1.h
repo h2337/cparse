@@ -44,6 +44,7 @@ typedef struct ActionNode {
 } ActionNode;
 
 typedef struct LR1Parser {
+  Grammar *grammar;
   LR1State **collection;
   GoToNode ***goToTable;
   ActionNode ***actionTable;
