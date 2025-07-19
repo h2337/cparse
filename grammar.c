@@ -114,7 +114,7 @@ void computeFollowSet(Grammar *grammar) {
   }
 }
 
-Grammar *parseGrammar(char *grammarString) {
+Grammar *cparseGrammar(char *grammarString) {
   Grammar *grammar = makeGrammar();
   char *rest, *token, *grammarStringPtr = grammarString;
   while ((token = strtok_r(grammarStringPtr, "\n", &rest))) {

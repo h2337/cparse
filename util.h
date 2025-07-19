@@ -1,12 +1,7 @@
 #ifndef CPARSE_UTIL_H
 #define CPARSE_UTIL_H
 
-#include <stdbool.h>
-
-typedef struct SetItem {
-  char *key;
-  char **values;
-} SetItem;
+#include "cparse.h"
 
 SetItem **makeSet();
 char **stringToWords(char *string);
