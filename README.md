@@ -7,6 +7,8 @@
 
 ## Overview
 
+> :warning: cparse is still under development and code is unpolished.
+
 cparse is a simple LR(1) parser generator for C.
 
 cparse uses [`clex`](https://github.com/h2337/clex) lexer generator for syntactic analysis purposes.
