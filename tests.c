@@ -508,10 +508,11 @@ int main(int argc, char *argv[]) {
 
   Grammar *grammar = parseGrammar(grammarString);
   printf("%s\n", getGrammarAsString(grammar));
-  /*
+
   LR1Parser *parser = createLR1Parser(grammar, tokenKindStr);
   printf("%s\n", getLR1ParserAsString(parser));
 
+  /*
   printf("%d\n", accept(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}"));
 
   ParseTreeNode *node = parse(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}");
