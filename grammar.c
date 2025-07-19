@@ -155,8 +155,17 @@ void computeFirstSet(Grammar *grammar) {
       computeFirst(grammar, grammar->nonterminals[i]);
 }
 
+void computeFollow(Grammar *grammar, char *nonterminal) {
+  if (strcmp(nontemrinal, "cparseStart") == 0) {
+    addToSet(grammar->follow, nonterminal, "$");
+    return;
+  }
+}
+
 void computeFollowSet(Grammar *grammar) {
-  addToSet(grammar->follow, "A", "$");
+  for (int i = 0; i < 1024; i++)
+    if (grammar->nonterminals[i])
+      computeFollow(grammar, grammar->nonterminals[i]);
 }
 
 Grammar *parseGrammar(char *grammarString) {
