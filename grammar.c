@@ -71,6 +71,7 @@ char **stringToWords(char *string) {
 }
 
 bool inSet(SetItem **set, char *key, char *value);
+bool inSetItem(SetItem *setItem, char *value);
 
 void addToSet(SetItem **set, char *key, char *value) {
   if (inSet(set, key, value)) return;
@@ -91,10 +92,25 @@ void addToSet(SetItem **set, char *key, char *value) {
     }
 }
 
+void addToSetItem(SetItem *setItem, char *value) {
+  if (inSetItem(setItem, value)) return;
+  for (int i = 0; i < 1024; i++)
+    if (!setItem->values[i]) {
+      setItem->values[i] = value;
+      return;
+    }
+}
+
 void addAllToSet(SetItem **set, char *key, char **values) {
   for (int i = 0; i < 1024; i++)
     if (values[i])
       addToSet(set, key, values[i]);
+}
+
+void addAllToSetItem(SetItem *setItem, char **values) {
+  for (int i = 0; i < 1024; i++)
+    if (values[i])
+      addToSetItem(setItem, values[i]);
 }
 
 bool inArray(char **array, char *value) {
@@ -113,11 +129,71 @@ bool inSet(SetItem **set, char *key, char *value) {
   return false;
 }
 
+bool isKeyInSet(SetItem **set, char *key) {
+  for (int i = 0; i < 1024; i++)
+    if (set[i] && strcmp(set[i]->key, key) == 0)
+      return true;
+  return false;
+}
+
+bool inSetItem(SetItem *setItem, char *value) {
+  for (int i = 0; i < 1024; i++)
+    if (setItem->values[i] && strcmp(setItem->values[i], value) == 0)
+      return true;
+  return false;
+}
+
+bool allInSetItem(SetItem *setItem, char **values) {
+  for (int i = 0; i < 1024; i++)
+    if (values[i] && !inSetItem(setItem, values[i]))
+      return false;
+  return true;
+}
+
+void removeFromSetItem(SetItem *setItem, char *value) {
+  for (int i = 0; i < 1024; i++)
+    if (setItem->values[i] && strcmp(setItem->values[i], value) == 0)
+      setItem->values[i] = NULL;
+}
+
 char **findValuesInSet(SetItem **set, char *key) {
   for (int i = 0; i < 1024; i++)
     if (set[i] && strcmp(set[i]->key, key) == 0)
-        return set[i]->values;
+      return set[i]->values;
   return NULL;
+}
+
+SetItem *findInSet(SetItem **set, char *key) {
+  for (int i = 0; i < 1024; i++)
+    if (set[i] && strcmp(set[i]->key, key) == 0)
+      return set[i];
+  return NULL;
+}
+
+int getValuesLength(char **values) {
+  for (int i = 0; i < 1024; i++)
+    if (!values[i])
+      return i;
+}
+
+void createSetItem(SetItem **set, char *key) {
+  for (int i = 0; i < 1024; i++)
+    if (!set[i]) {
+      set[i] = calloc(1, sizeof(SetItem));
+      set[i]->key = key;
+      set[i]->values = calloc(1024, sizeof(char *));
+      return;
+    }
+}
+
+SetItem *copySetItem(SetItem *setItem) {
+  SetItem *result = calloc(1, sizeof(SetItem));
+  result->values = calloc(1024, sizeof(char *));
+  result->key = setItem->key;
+  for (int i = 0; i < 1024; i++)
+    if (setItem->values[i])
+      result->values[i] = setItem->values[i];
+  return result;
 }
 
 void computeFirst(Grammar *grammar, char *nonterminal) {
@@ -146,7 +222,6 @@ void computeFirst(Grammar *grammar, char *nonterminal) {
       }
     }
   }
-
 }
 
 void computeFirstSet(Grammar *grammar) {
@@ -155,17 +230,53 @@ void computeFirstSet(Grammar *grammar) {
       computeFirst(grammar, grammar->nonterminals[i]);
 }
 
-void computeFollow(Grammar *grammar, char *nonterminal) {
-  if (strcmp(nonterminal, "cparseStart") == 0) {
-    addToSet(grammar->follow, nonterminal, "$");
-    return;
-  }
-}
-
 void computeFollowSet(Grammar *grammar) {
   for (int i = 0; i < 1024; i++)
-    if (grammar->nonterminals[i])
-      computeFollow(grammar, grammar->nonterminals[i]);
+    if (grammar->nonterminals[i] && !isKeyInSet(grammar->follow, grammar->nonterminals[i]))
+      createSetItem(grammar->follow, grammar->nonterminals[i]);
+  while (true) {
+    bool hasChanged = false;
+    for (int i = 0; i < 1024; i++) {
+      if (grammar->nonterminals[i]) {
+        char *nonterminal = grammar->nonterminals[i];
+        if (strcmp(nonterminal, "cparseStart") == 0) {
+          addToSet(grammar->follow, nonterminal, "$");
+          continue;
+        }
+        for (int i = 0; i < 1024; i++) {
+          if (grammar->rules[i]) {
+            for (int j = 0; j < 1024; j++) {
+              if (grammar->rules[i]->right[j] && strcmp(grammar->rules[i]->right[j], nonterminal) == 0) {
+                SetItem *first = NULL;
+                if (j == getValuesLength(grammar->rules[i]->right) - 1) {
+                  first = findInSet(grammar->follow, grammar->rules[i]->left);
+                } else {
+                  SetItem *rightFirst = findInSet(grammar->first, grammar->rules[i]->right[j + 1]);
+                  if (rightFirst)
+                    first = copySetItem(rightFirst);
+                  else {
+                    first = calloc(1, sizeof(SetItem));
+                    first->values = calloc(1024, sizeof(SetItem));
+                    first->values[0] = grammar->rules[i]->right[j + 1];
+                  }
+                  if (inSetItem(first, "#")) {
+                    removeFromSetItem(first, "#");
+                    addAllToSetItem(first, findValuesInSet(grammar->follow, grammar->rules[i]->left));
+                  }
+                }
+                SetItem *follow = findInSet(grammar->follow, nonterminal);
+                if (!allInSetItem(follow, first->values)) {
+                  hasChanged = true;
+                  addAllToSetItem(follow, first->values);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if (!hasChanged) break;
+  }
 }
 
 Grammar *parseGrammar(char *grammarString) {
@@ -179,6 +290,7 @@ Grammar *parseGrammar(char *grammarString) {
       rule->left = "cparseStart";
       addCharPtrToArray(rule->right, left);
       addRuleToArray(grammar->rules, rule);
+      addCharPtrToArray(grammar->nonterminals, "cparseStart");
     }
     addCharPtrToArray(grammar->nonterminals, left);
     char *right = strtok(NULL, "->");
@@ -256,17 +368,19 @@ char *getGrammarAsString(Grammar *grammar) {
   }
   sprintf(result + strlen(result), "\nFollow set:");
   for (int i = 0; i < 1024; i++) {
+    bool empty = true;
     if (grammar->follow[i]) {
       sprintf(result + strlen(result), " ");
       sprintf(result + strlen(result), grammar->follow[i]->key);
       sprintf(result + strlen(result), ": [");
       for (int j = 0; j < 1024; j++) {
         if (grammar->follow[i]->values[j]) {
+          empty = false;
           sprintf(result + strlen(result), grammar->follow[i]->values[j]);
           sprintf(result + strlen(result), ", ");
         }
       }
-      result[strlen(result) - 2] = '\0';
+      if (!empty) result[strlen(result) - 2] = '\0';
       sprintf(result + strlen(result), "]");
     }
   }
