@@ -155,6 +155,10 @@ void computeFirstSet(Grammar *grammar) {
       computeFirst(grammar, grammar->nonterminals[i]);
 }
 
+void computeFollowSet(Grammar *grammar) {
+  addToSet(grammar->follow, "A", "$");
+}
+
 Grammar *parseGrammar(char *grammarString) {
   Grammar *grammar = makeGrammar();
   char *rest, *token, *grammarStringPtr = grammarString;
@@ -188,6 +192,7 @@ Grammar *parseGrammar(char *grammarString) {
     if (grammar->nonterminals[i])
       removeCharPtrFromArray(grammar->terminals, grammar->nonterminals[i]);
   computeFirstSet(grammar);
+  computeFollowSet(grammar);
   return grammar;
 }
 
@@ -233,6 +238,22 @@ char *getGrammarAsString(Grammar *grammar) {
       for (int j = 0; j < 1024; j++) {
         if (grammar->first[i]->values[j]) {
           sprintf(result + strlen(result), grammar->first[i]->values[j]);
+          sprintf(result + strlen(result), ", ");
+        }
+      }
+      result[strlen(result) - 2] = '\0';
+      sprintf(result + strlen(result), "]");
+    }
+  }
+  sprintf(result + strlen(result), "\nFollow set:");
+  for (int i = 0; i < 1024; i++) {
+    if (grammar->follow[i]) {
+      sprintf(result + strlen(result), " ");
+      sprintf(result + strlen(result), grammar->follow[i]->key);
+      sprintf(result + strlen(result), ": [");
+      for (int j = 0; j < 1024; j++) {
+        if (grammar->follow[i]->values[j]) {
+          sprintf(result + strlen(result), grammar->follow[i]->values[j]);
           sprintf(result + strlen(result), ", ");
         }
       }
