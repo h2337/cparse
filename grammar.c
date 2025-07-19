@@ -4,11 +4,18 @@
 #include <ctype.h>
 #include <stdio.h>
 
+SetItem **makeSet() {
+  SetItem **set = calloc(1024, sizeof(SetItem));
+  return set;
+}
+
 Grammar *makeGrammar() {
   Grammar *grammar = calloc(1, sizeof(Grammar));
   grammar->rules = calloc(1024, sizeof(Rule *));
   grammar->terminals = calloc(1024, sizeof(char *));
   grammar->nonterminals = calloc(1024, sizeof(char *));
+  grammar->first = makeSet();
+  grammar->follow = makeSet();
   return grammar;
 }
 
@@ -62,6 +69,31 @@ char **stringToWords(char *string) {
   return result;
 }
 
+void addToSet(SetItem **set, char *key, char *value) {
+  for (int i = 0; i < 1024; i++)
+    if (set[i] && strcmp(set[i]->key, key) == 0)
+      for (int j = 0; j < 1024; j++)
+        if (!set[i]->values[j]) {
+          set[i]->values[j] = value;
+          return;
+        }
+  for (int i = 0; i < 1024; i++)
+    if (!set[i]) {
+      set[i] = calloc(1, sizeof(SetItem));
+      set[i]->key = key;
+      set[i]->values = calloc(1024, sizeof(char *));
+      set[i]->values[0] = value;
+      return;
+    }
+}
+
+void computeFirstSet(Grammar *grammar) {
+  addToSet(grammar->first, "S", "a");
+  addToSet(grammar->first, "S", "b");
+  addToSet(grammar->first, "A", "a");
+  addToSet(grammar->first, "A", "b");
+}
+
 Grammar *parseGrammar(char *grammarString) {
   Grammar *grammar = makeGrammar();
   char *rest, *token, *grammarStringPtr = grammarString;
@@ -81,7 +113,7 @@ Grammar *parseGrammar(char *grammarString) {
       singleRight = trim(singleRight);
       char **singleRightWords = stringToWords(singleRight);
       for (int i = 0; i < 1024; i++)
-        if (singleRightWords[i] && strcmp(singleRightWords[i], "epsilon") != 0)
+        if (singleRightWords[i] && strcmp(singleRightWords[i], "#") != 0)
           addCharPtrToArray(grammar->terminals, singleRightWords[i]);
       Rule *rule = makeRule();
       rule->left = left;
@@ -94,6 +126,7 @@ Grammar *parseGrammar(char *grammarString) {
   for (int i = 0; i < 1024; i++)
     if (grammar->nonterminals[i])
       removeCharPtrFromArray(grammar->terminals, grammar->nonterminals[i]);
+  computeFirstSet(grammar);
   return grammar;
 }
 
@@ -127,6 +160,23 @@ char *getGrammarAsString(Grammar *grammar) {
         }
       }
       sprintf(result + strlen(result), " && ");
+    }
+  }
+  result[strlen(result) - 4] = '\0';
+  sprintf(result + strlen(result), "\nFirst set:");
+  for (int i = 0; i < 1024; i++) {
+    if (grammar->first[i]) {
+      sprintf(result + strlen(result), " ");
+      sprintf(result + strlen(result), grammar->first[i]->key);
+      sprintf(result + strlen(result), ": [");
+      for (int j = 0; j < 1024; j++) {
+        if (grammar->first[i]->values[j]) {
+          sprintf(result + strlen(result), grammar->first[i]->values[j]);
+          sprintf(result + strlen(result), ", ");
+        }
+      }
+      result[strlen(result) - 2] = '\0';
+      sprintf(result + strlen(result), "]");
     }
   }
   return result;
