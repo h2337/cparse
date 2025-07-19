@@ -29,9 +29,9 @@ char *grammar3StringResult = "Start nonterminal: P\n"
 
 int main(int argc, char *argv[]) {
   char grammarString[] = "S -> A A\nA -> a A | b\nB -> #";
-  Grammar *grammar = parseGrammar(grammarString);
-  printf("%s\n", getGrammarAsString(grammar));
-  assert(strcmp(getGrammarAsString(grammar), grammar1StringResult) == 0);
+  Grammar *grammar1 = parseGrammar(grammarString);
+  printf("%s\n", getGrammarAsString(grammar1));
+  assert(strcmp(getGrammarAsString(grammar1), grammar1StringResult) == 0);
 
   printf("\n");
 
@@ -60,8 +60,18 @@ int main(int argc, char *argv[]) {
 
   printf("\n");
 
-  LR1Parser *parser = createLR1Parser(grammar2);
-  printf("%s\n", getLR1ParserAsString(parser));
+  LR1Parser *parser1 = createLR1Parser(grammar1);
+  printf("%s\n", getLR1ParserAsString(parser1));
+
+  printf("\n");
+
+  LR1Parser *parser2 = createLR1Parser(grammar2);
+  printf("%s\n", getLR1ParserAsString(parser2));
+
+  printf("\n");
+
+  LR1Parser *parser3 = createLR1Parser(grammar3);
+  printf("%s\n", getLR1ParserAsString(parser3));
 }
 
 #endif
