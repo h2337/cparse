@@ -269,6 +269,21 @@ void createGoToTable(LR1Parser *parser, Grammar *grammar) {
   }
 }
 
+int getRuleIndex(Grammar *grammar, char *left, char **right) {
+  for (int i = 0; i < 1024; i++)
+    if (grammar->rules[i])
+      if (strcmp(grammar->rules[i]->left, left) == 0 && isArrayEqual(grammar->rules[i]->right, right))
+        return i;
+  return -1;
+}
+
+bool isTerminalInActionTable(ActionNode **table, char *terminal) {
+  for (int i = 0; i < 1024; i++)
+    if (table[i] && strcmp(table[i]->terminal, terminal) == 0)
+      return true;
+  return false;
+}
+
 void createActionTable(LR1Parser *parser, Grammar *grammar) {
   for (int i = 0; i < 1024; i++) {
     if (parser->goToTable[i]) {
@@ -281,7 +296,31 @@ void createActionTable(LR1Parser *parser, Grammar *grammar) {
         if (parser->collection[i]->transitions[j])
           if (!isNonTerminal(grammar, parser->collection[i]->transitions[j]->value))
             addActionNode(parser->actionTable[i], makeActionNode(parser->collection[i]->transitions[j]->value, SHIFT, getIndexOfState(parser->collection, parser->collection[i]->transitions[j]->state)));
-  // TODO
+  for (int i = 0; i < 1024; i++) {
+    if (parser->collection[i]) {
+      for (int j = 0; j < 1024; j++) {
+        if (parser->collection[i]->items[j]) {
+          LR1Item *item = parser->collection[i]->items[j];
+          if (item->dot == getValuesLength(item->right)) {
+            if (strcmp(item->left, "cparseStart") == 0) {
+              addActionNode(parser->actionTable[i], makeActionNode("$", ACCEPT, 0));
+            } else {
+              int index = getRuleIndex(grammar, item->left, item->right);
+              for (int x = 0; x < 1024; x++) {
+                if (item->lookaheads[x]) {
+                  if (isTerminalInActionTable(parser->actionTable[i], item->lookaheads[x])) {
+                    fprintf(stderr, "Conflict found\n");
+                  } else {
+                    addActionNode(parser->actionTable[i], makeActionNode(item->lookaheads[x], REDUCE, index));
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 LR1Parser *createLR1Parser(Grammar *grammar) {
