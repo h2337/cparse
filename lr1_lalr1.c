@@ -1,5 +1,5 @@
 #include "cparse.h"
-#include "lr1.h"
+#include "lr1_lalr1.h"
 #include "util.h"
 #include "clex/clex.h"
 #include <stdlib.h>
@@ -195,7 +195,7 @@ bool arrayContainsAllLR1Items(LR1Item **a, LR1Item **b) {
   return true;
 }
 
-void createCollection(LR1Parser *parser, Grammar *grammar) {
+void createCollectionLR1(LR1Parser *parser, Grammar *grammar) {
   LR1Item **startItems = calloc(ARRAY_CAPACITY, sizeof(LR1Item *));
   char **startLookahead = calloc(ARRAY_CAPACITY, sizeof(char *));
   startLookahead[0] = "$";
@@ -233,6 +233,115 @@ void createCollection(LR1Parser *parser, Grammar *grammar) {
           if (!exists) {
             addState(parser->collection, state);
             addTransition(parser->collection[i]->transitions, makeTransition(strings[j], state));
+          } else {
+            for (int i = 0; i < ARRAY_CAPACITY; i++)
+              if (items[i])
+                free(items[i]);
+            free(items);
+            free(state->transitions);
+            free(state);
+          }
+        }
+      }
+      free(strings);
+    }
+  }
+}
+
+bool isEqualLR0(LR1Item *a, LR1Item *b) {
+    if (a->dot == b->dot && strcmp(a->left, b->left) == 0 && isArrayEqual(a->right, b->right))
+      return true;
+    return false;
+}
+
+bool inArrayLR0Item(LR1Item **array, LR1Item *item) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (!array[i])
+      return false;
+    if (isEqualLR0(array[i], item))
+      return true;
+  }
+  return false;
+}
+
+bool arrayContainsAllLR0Items(LR1Item **a, LR1Item **b) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++)
+    if (b[i] && !inArrayLR0Item(a, b[i]))
+      return false;
+  return true;
+}
+
+LR1Item *findItem(LR1Item **items, LR1Item *item) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (!items[i]) break;
+    if (isEqualLR0(items[i], item))
+      return items[i];
+  }
+  return NULL;
+}
+
+LR1State *mergeState(LR1State **states, LR1State *state) {
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (!states[i]) break;
+    if (arrayContainsAllLR0Items(states[i]->items, state->items) && arrayContainsAllLR0Items(state->items, states[i]->items)) {
+      for (int j = 0; i < ARRAY_CAPACITY; j++) {
+        if (!state->items[j]) break;
+        LR1Item *equalItem = findItem(states[i]->items, state->items[j]);
+        addAllCharPtrToArrayUnique(equalItem->lookaheads, state->items[j]->lookaheads);
+      }
+      return states[i];
+    }
+  }
+  addState(states, state);
+  return state;
+}
+
+void createCollectionLALR1(LR1Parser *parser, Grammar *grammar) {
+  LR1Item **startItems = calloc(ARRAY_CAPACITY, sizeof(LR1Item *));
+  char **startLookahead = calloc(ARRAY_CAPACITY, sizeof(char *));
+  startLookahead[0] = "$";
+  Rule *firstRule = grammar->rules[0];
+  startItems[0] = makeLR1Item(firstRule->left, firstRule->right, 0, startLookahead);
+  LR1State *startState = makeLR1State(grammar, startItems);
+  parser->collection[0] = startState;
+  for (int i = 0; i < ARRAY_CAPACITY; i++) {
+    if (parser->collection[i]) {
+      char **strings = calloc(ARRAY_CAPACITY, sizeof(char *));
+      for (int j = 0; j < ARRAY_CAPACITY; j++)
+        if (parser->collection[i]->items[j])
+          if (parser->collection[i]->items[j]->right[parser->collection[i]->items[j]->dot])
+            addCharPtrToArray(strings, parser->collection[i]->items[j]->right[parser->collection[i]->items[j]->dot]);
+      for (int j = 0; j < ARRAY_CAPACITY; j++) {
+        if (strings[j]) {
+          LR1Item **items = calloc(ARRAY_CAPACITY, sizeof(LR1Item *));
+          for (int x = 0; x < ARRAY_CAPACITY; x++) {
+            if (parser->collection[i]->items[x]) {
+              if (parser->collection[i]->items[x]->right[parser->collection[i]->items[x]->dot] && strcmp(parser->collection[i]->items[x]->right[parser->collection[i]->items[x]->dot], strings[j]) == 0) {
+                addItem(items, makeLR1Item(parser->collection[i]->items[x]->left, parser->collection[i]->items[x]->right, parser->collection[i]->items[x]->dot + 1, parser->collection[i]->items[x]->lookaheads));
+              }
+            }
+          }
+          LR1State *state = makeLR1State(grammar, items);
+          bool exists = false;
+          for (int x = 0; x < ARRAY_CAPACITY; x++) {
+            if (parser->collection[x]) {
+              if (arrayContainsAllLR1Items(parser->collection[x]->items, state->items) && arrayContainsAllLR1Items(state->items, parser->collection[x]->items)) {
+                exists = true;
+                addTransition(parser->collection[i]->transitions, makeTransition(strings[j], parser->collection[x]));
+              }
+            }
+          }
+          if (!exists) {
+            LR1State *mergedState = mergeState(parser->collection, state);
+            addTransition(parser->collection[i]->transitions, makeTransition(strings[j], mergedState));
+            if (state != mergedState) {
+              for (int i = 0; i < ARRAY_CAPACITY; i++)
+                if (items[i])
+                  free(items[i]);
+              free(items);
+              free(state->transitions);
+              free(state);
+            }
           } else {
             for (int i = 0; i < ARRAY_CAPACITY; i++)
               if (items[i])
@@ -350,7 +459,17 @@ LR1Parser *cparseCreateLR1Parser(Grammar *grammar, const char * const *tokenKind
   LR1Parser *parser = makeParser();
   parser->grammar = grammar;
   parser->tokenKindStr = tokenKindStr;
-  createCollection(parser, grammar);
+  createCollectionLR1(parser, grammar);
+  createGoToTable(parser, grammar);
+  createActionTable(parser, grammar);
+  return parser;
+}
+
+LALR1Parser *cparseCreateLALR1Parser(Grammar *grammar, const char * const *tokenKindStr) {
+  LR1Parser *parser = makeParser();
+  parser->grammar = grammar;
+  parser->tokenKindStr = tokenKindStr;
+  createCollectionLALR1(parser, grammar);
   createGoToTable(parser, grammar);
   createActionTable(parser, grammar);
   return parser;
