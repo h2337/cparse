@@ -87,22 +87,26 @@ void addAllToSetItem(SetItem *setItem, char **values) {
 
 bool inArray(char **array, char *value) {
   for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (array[i] && strcmp(array[i], value) == 0)
+    if (array[i] && (array[i] == value || strcmp(array[i], value) == 0))
       return true;
   return false;
 }
 
 bool isArrayEqual(char **a, char **b) {
+  if (a == b) return true;
   for (int i = 0; i < ARRAY_CAPACITY; i++)
     if (a[i])
-      if (!b[i] || strcmp(a[i], b[i]) != 0)
+      if (!b[i] || (a[i] != b[i] && strcmp(a[i], b[i]) != 0))
         return false;
   return true;
 }
 
 bool arrayContainsAll(char **a, char **b) {
+  if (a == b) return true;
   for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (b[i] && !inArray(a, b[i]))
+    if (!b[i])
+      break;
+    else if (!inArray(a, b[i]))
       return false;
   return true;
 }
@@ -184,10 +188,8 @@ SetItem *copySetItem(SetItem *setItem) {
 }
 
 char **copyCharArray(char **values) {
-  char **result = calloc(ARRAY_CAPACITY, sizeof(char *));
-  for (int i = 0; i < ARRAY_CAPACITY; i++)
-    if (values[i])
-      addCharPtrToArray(result, values[i]);
+  char **result = malloc(ARRAY_CAPACITY * sizeof(char *));
+  memcpy(result, values, ARRAY_CAPACITY);
   return result;
 }
 
