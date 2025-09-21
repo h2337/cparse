@@ -6,4 +6,3 @@
 char *getGrammarAsString(Grammar *grammar);
 
 #endif
-

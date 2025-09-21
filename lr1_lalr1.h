@@ -7,4 +7,3 @@ char *getLR1ParserAsString(LR1Parser *parser);
 char *getParseTreeAsString(ParseTreeNode *node);
 
 #endif
-

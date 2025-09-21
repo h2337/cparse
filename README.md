@@ -1,79 +1,131 @@
-<img align="right" src="https://github.com/h2337/file-hosting/blob/b51468695319c3768e08ea2f11fcda6bca61551d/cparse2.png?raw=true">
+# cparse
 
-## TOC
+`cparse` is an LR(1) and LALR(1) parser generator for C. It consumes a grammar written in an intuitive textual format and, together with the [`clex`](./clex) lexer generator, lets you build parsers that can both validate and produce parse trees for input programs.
 
-* [Overview](#overview)
-* [Example](#example)
+## Highlights
 
-## Overview
+- Modernised LR(1) and LALR(1) construction written in portable C11.
+- Predictable performance via dynamic data structures instead of fixed-size arrays.
+- First/Follow set computation with useful diagnostics for malformed grammars.
+- Straightforward runtime API (`cparseAccept`, `cparse`) that produces parse trees.
+- Ships with a tiny test suite (`make test`) and a static library build (`libcparse.a`).
 
-> :warning: cparse is still under development and code is unpolished.
+## Getting Started
 
-cparse is an LR(1) and LALR(1) parser generator for C.
+```bash
+git clone https://github.com/h2337/cparse.git
+cd cparse
+git submodule update --init --recursive
+make test   # builds libcparse.a, the test binary, and runs the tests
+```
 
-cparse uses [`clex`](https://github.com/h2337/clex) lexer generator for lexical analysis purposes.
+This project depends only on a C11 compiler. The bundled `clex` submodule is used for lexical analysis in the examples and tests.
 
-Note that LR(1) parsers are memory-intensive (and there are memory leaks...), so something like full C grammar can require up to 4GBs of free RAM. If you don't have RAM to spare then use the LALR(1) parser, which also happens to get constructed faster but might not support some of the grammars that LR(1) does (though in practice most programming language grammars are LALR(1)-compatible).
-
-## Example
+## Quick Example
 
 ```c
 #include "cparse.h"
 #include "clex/clex.h"
-#include <stdio.h>
-#include <assert.h>
-#include <string.h>
 
-// Create an enum for token types
-typedef enum TokenKind {
-  RETURN,
-  SEMICOL,
-  IDENTIFIER,
-} TokenKind;
-
-// Provide a string representation for each token type to be used in the grammar
-const char * const tokenKindStr[] = {
-  [RETURN] = "RETURN",
-  [SEMICOL] = "SEMICOL",
-  [IDENTIFIER] = "IDENTIFIER",
+// Token kinds supplied to clex
+enum {
+  TOK_RETURN,
+  TOK_IDENTIFIER,
+  TOK_SEMICOLON,
 };
 
-int main(int argc, char *argv[]) {
-  // Register your token types with `clex`
-  clexRegisterKind("return", RETURN);
-  clexRegisterKind(";", SEMICOL);
-  clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
+static const char *token_names[] = {
+  [TOK_RETURN] = "RETURN",
+  [TOK_IDENTIFIER] = "IDENTIFIER",
+  [TOK_SEMICOLON] = "SEMICOL",
+};
 
-  // Write your grammar
-  char grammarString[] =
-    "S -> A IDENTIFIER SEMICOL\n"
-    "A -> RETURN";
+int main(void) {
+  clexLexer *lexer = clexInit();
+  clexRegisterKind(lexer, "return", TOK_RETURN);
+  clexRegisterKind(lexer, "[a-zA-Z_]([a-zA-Z_]|[0-9])*", TOK_IDENTIFIER);
+  clexRegisterKind(lexer, ";", TOK_SEMICOLON);
 
-  // Parse your grammar
-  Grammar *grammar = cparseGrammar(grammarString);
-  // Construct an LALR(1) parser
-  LALR1Parser *parser = cparseCreateLALR1Parser(grammar, tokenKindStr);
+  const char *grammar_src =
+      "S -> A IDENTIFIER SEMICOL\n"
+      "A -> RETURN";
 
-  // Or construct an LR(1) parser
-  //LR1Parser *parser = cparseCreateLR1Parser(grammar, tokenKindStr);
+  Grammar *grammar = cparseGrammar(grammar_src);
+  LR1Parser *parser = cparseCreateLR1Parser(grammar, lexer, token_names);
 
-  // Test if given input is valid within the grammar
-  assert(cparseAccept(parser, "return id1;") == true);
+  if (cparseAccept(parser, "return answer;")) {
+    ParseTreeNode *root = cparse(parser, "return answer;");
+    /* ... consume parse tree ... */
+    cparseFreeParseTree(root);
+  }
 
-  // Parse a given input and get a parse tree
-  ParseTreeNode *node = cparse(parser, "return id1;");
-
-  // Use your parse tree
-  assert(strcmp(node->value, "S") == 0);
-  assert(strcmp(node->children[0]->value, "SEMICOL") == 0);
-  assert(node->children[0]->token.kind == SEMICOL);
-  assert(strcmp(node->children[0]->token.lexeme, ";") == 0);
-  assert(strcmp(node->children[1]->value, "IDENTIFIER") == 0);
-  assert(node->children[1]->token.kind == IDENTIFIER);
-  assert(strcmp(node->children[1]->token.lexeme, "id1") == 0);
-  assert(strcmp(node->children[2]->value, "A") == 0);
-  assert(strcmp(node->children[2]->children[0]->value, "RETURN") == 0);
-  assert(node->children[2]->children[0]->token.kind == RETURN);
-  assert(strcmp(node->children[2]->children[0]->token.lexeme, "return") == 0);
+  cparseFreeParser(parser);
+  cparseFreeGrammar(grammar);
+  clexLexerDestroy(lexer);
+  return 0;
 }
 ```
+
+## Runtime API
+
+| Function | Description |
+|----------|-------------|
+| `Grammar *cparseGrammar(const char *grammar_source)` | Parse a grammar description into an internal representation. |
+| `LR1Parser *cparseCreateLR1Parser(Grammar *, clexLexer *, const char *const *token_names)` | Build an LR(1) parser (the lexer remains owned by the caller). |
+| `LALR1Parser *cparseCreateLALR1Parser(Grammar *, clexLexer *, const char *const *token_names)` | Build an LALR(1) parser by merging LR(1) states (caller retains lexer ownership). |
+| `bool cparseAccept(LR1Parser *, const char *input)` | Check whether the input belongs to the grammar. |
+| `ParseTreeNode *cparse(LR1Parser *, const char *input)` | Parse input and return the parse tree (or `NULL` on failure). |
+| `void cparseFreeParseTree(ParseTreeNode *)` | Recursively release a parse tree allocated by `cparse`. |
+| `void cparseFreeParser(LR1Parser *)` | Release parser state (works for LALR parsers as well). |
+| `void cparseFreeGrammar(Grammar *)` | Release grammar data structures. |
+
+A parse tree node stores the grammar symbol in `value`, the matched token (for terminals) in `token`, and its children in `children`.
+
+## Building
+
+- `make` or `make tests` builds `libcparse.a`, the supporting objects, and the `tests` binary.
+- `make test` runs the regression tests.
+- `make examples` builds the sample programs under `examples/`.
+- `make clean` removes build artefacts.
+
+You can link `libcparse.a` into your own project together with `clex/clex.o` and `clex/fa.o`, or embed the sources directly.
+
+## Examples
+
+The `examples/` directory contains small, self-contained programs that exercise the library. After running `make examples` you can try the expression parser:
+
+```bash
+./examples/expr_parser "8 + 5 * 2"
+```
+
+The example registers a handful of tokens, builds an LALR(1) grammar for arithmetic expressions, validates the input, and prints the resulting parse tree.
+
+## Grammar Format
+
+Each line describes a production:
+
+```
+NonTerminal -> alternative1 | alternative2 | ...
+```
+
+- Tokens are whitespace separated.
+- Use `epsilon` to denote an empty production.
+- Lines beginning with `#` are treated as comments.
+
+For example:
+
+```
+S -> A IDENTIFIER SEMICOL
+A -> RETURN | epsilon
+```
+
+## Development Notes
+
+- The implementation avoids fixed limits and lazy `strtok()` parsing, making it suitable for larger grammars.
+- First and Follow sets are computed iteratively; unexpected productions emit diagnostics on `stderr`.
+- The repository includes a tiny test harness in `tests.c`. Extend it with grammar-specific checks as needed.
+- Parsers borrow the `clexLexer` you pass; create it up front, register token kinds, and destroy it once you are done with parsing.
+
+## License
+
+Distributed under the terms of the MIT License. See [LICENSE](./LICENSE).

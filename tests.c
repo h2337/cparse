@@ -1,1015 +1,453 @@
-#ifdef TEST_CPARSE1
-
-#include "grammar.h"
-#include "lr1_lalr1.h"
+#include <stdbool.h>
 #include <stdio.h>
-#include <assert.h>
 #include <string.h>
 
-char *grammar1StringResult = "Start nonterminal: S\n"
-"Terminals: b a\n"
-"Non-terminals: cparseStart S A B\n"
-"Rules: cparseStart -> S && S -> A A && A -> a A && A -> b && B -> epsilon\n"
-"First set: A: [a, b] S: [a, b] cparseStart: [a, b] B: [epsilon]\n"
-"Follow set: cparseStart: [$] S: [$] A: [a, b, $] B: []";
-
-char *grammar2StringResult = "Start nonterminal: Program\n"
-"Terminals: var write begin ( end ) ; identifier read\n"
-"Non-terminals: cparseStart Program Variables Variable Operators Operator\n"
-"Rules: cparseStart -> Program && Program -> var Variables begin Operators end && Variables -> Variable ; Variables && Variables -> epsilon && Variable -> identifier && Operators -> Operator ; Operators && Operators -> epsilon && Operator -> read ( Variable ) && Operator -> write ( Variable )\n"
-"First set: Program: [var] cparseStart: [var] Variable: [identifier] Variables: [identifier, epsilon] Operator: [read, write] Operators: [read, write, epsilon]\n"
-"Follow set: cparseStart: [$] Program: [$] Variables: [begin] Variable: [;, )] Operators: [end] Operator: [;]";
-
-char *grammar3StringResult = "Start nonterminal: P\n"
-"Terminals: ) + ( id\n"
-"Non-terminals: cparseStart P E T\n"
-"Rules: cparseStart -> P && P -> E && E -> E + T && E -> T && T -> id ( E ) && T -> id\n"
-"First set: T: [id] E: [id] P: [id] cparseStart: [id]\n"
-"Follow set: cparseStart: [$] P: [$] E: [$, +, )] T: [$, +, )]";
-
-int main(int argc, char *argv[]) {
-  char grammarString[] = "S -> A A\nA -> a A | b\nB -> epsilon";
-  Grammar *grammar1 = cparseGrammar(grammarString);
-  printf("%s\n", getGrammarAsString(grammar1));
-  assert(strcmp(getGrammarAsString(grammar1), grammar1StringResult) == 0);
-
-  printf("\n");
-
-  char grammarString2[] = "Program -> var Variables begin Operators end\n"
-    "Variables -> Variable ; Variables\n"
-    "Variables -> epsilon\n"
-    "Variable -> identifier\n"
-    "Operators -> Operator ; Operators\n"
-    "Operators -> epsilon\n"
-    "Operator -> read ( Variable )\n"
-    "Operator -> write ( Variable )\n";
-  Grammar *grammar2 = cparseGrammar(grammarString2);
-  printf("%s\n", getGrammarAsString(grammar2));
-  assert(strcmp(getGrammarAsString(grammar2), grammar2StringResult) == 0);
-
-  printf("\n");
-
-  char grammarString3[] = "P -> E\n"
-    "E -> E + T\n"
-    "E -> T\n"
-    "T -> id ( E )\n"
-    "T -> id\n";
-  Grammar *grammar3 = cparseGrammar(grammarString3);
-  printf("%s\n", getGrammarAsString(grammar3));
-  assert(strcmp(getGrammarAsString(grammar3), grammar3StringResult) == 0);
-
-  printf("\n");
-
-  LR1Parser *parser1 = cparseCreateLR1Parser(grammar1, NULL);
-  printf("%s\n", getLR1ParserAsString(parser1));
-
-  printf("\n");
-
-  LR1Parser *parser2 = cparseCreateLR1Parser(grammar2, NULL);
-  printf("%s\n", getLR1ParserAsString(parser2));
-
-  printf("\n");
-
-  LR1Parser *parser3 = cparseCreateLR1Parser(grammar3, NULL);
-  printf("%s\n", getLR1ParserAsString(parser3));
-}
-
-#endif
-
-#ifdef TEST_CPARSE2
-
-#include "grammar.h"
-#include "lr1_lalr1.h"
 #include "clex/clex.h"
-#include <stdio.h>
-#include <assert.h>
-#include <string.h>
-
-typedef enum TokenKind {
-  INT,
-  OPARAN,
-  CPARAN,
-  OSQUAREBRACE,
-  CSQUAREBRACE,
-  OCURLYBRACE,
-  CCURLYBRACE,
-  COMMA,
-  CHAR,
-  STAR,
-  RETURN,
-  SEMICOL,
-  CONSTANT,
-  IDENTIFIER,
-} TokenKind;
-
-const char * const tokenKindStr[] = {
-  [INT] = "INT",
-  [OPARAN] = "OPARAN",
-  [CPARAN] = "CPARAN",
-  [OSQUAREBRACE] = "OSQUAREBRACE",
-  [CSQUAREBRACE] = "CSQUAREBRACE",
-  [OCURLYBRACE] = "OCURLYBRACE",
-  [CCURLYBRACE] = "CCURLYBRACE",
-  [COMMA] = "COMMA",
-  [CHAR] = "CHAR",
-  [STAR] = "STAR",
-  [RETURN] = "RETURN",
-  [SEMICOL] = "SEMICOL",
-  [CONSTANT] = "CONSTANT",
-  [IDENTIFIER] = "IDENTIFIER",
-};
-
-int main(int argc, char *argv[]) {
-  clexRegisterKind("int", INT);
-  clexRegisterKind("\\(", OPARAN);
-  clexRegisterKind("\\)", CPARAN);
-  clexRegisterKind("\\[|<:", OSQUAREBRACE);
-  clexRegisterKind("\\]|:>", CSQUAREBRACE);
-  clexRegisterKind("{|<%", OCURLYBRACE);
-  clexRegisterKind("}|%>", CCURLYBRACE);
-  clexRegisterKind(",", COMMA);
-  clexRegisterKind("char", CHAR);
-  clexRegisterKind("\\*", STAR);
-  clexRegisterKind("return", RETURN);
-  clexRegisterKind("[1-9][0-9]*([uU])?([lL])?([lL])?", CONSTANT);
-  clexRegisterKind(";", SEMICOL);
-  clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
-
-  char grammarString[] = "S -> A IDENTIFIER SEMICOL\nA -> RETURN\n";
-  Grammar *grammar = cparseGrammar(grammarString);
-  printf("%s\n", getGrammarAsString(grammar));
-  LR1Parser *parser = cparseCreateLR1Parser(grammar, tokenKindStr);
-  printf("%s\n", getLR1ParserAsString(parser));
-
-  printf("%d\n", cparseAccept(parser, "return id1;"));
-
-  ParseTreeNode *node = cparse(parser, "return id1;");
-  printf("%s\n", getParseTreeAsString(node));
-}
-
-#endif
-
-#ifdef TEST_CPARSE3
-
-#include "grammar.h"
-#include "lr1_lalr1.h"
-#include "clex/clex.h"
-#include <stdio.h>
-#include <assert.h>
-#include <string.h>
-
-#undef EOF
-
-typedef enum TokenKind {
-  EOF,
-  AUTO,
-  BOOL,
-  BREAK,
-  CASE,
-  CHAR,
-  COMPLEX,
-  CONST,
-  CONTINUE,
-  DEFAULT,
-  DO,
-  DOUBLE,
-  ELSE,
-  ENUM,
-  EXTERN,
-  FLOAT,
-  FOR,
-  GOTO,
-  IF,
-  IMAGINARY,
-  INLINE,
-  INT,
-  LONG,
-  REGISTER,
-  RESTRICT,
-  RETURN,
-  SHORT,
-  SIGNED,
-  SIZEOF,
-  STATIC,
-  STRUCT,
-  SWITCH,
-  TYPEDEF,
-  UNION,
-  UNSIGNED,
-  VOID,
-  VOLATILE,
-  WHILE,
-  ELLIPSIS,
-  RIGHT_ASSIGN,
-  LEFT_ASSIGN,
-  ADD_ASSIGN,
-  SUB_ASSIGN,
-  MUL_ASSIGN,
-  DIV_ASSIGN,
-  MOD_ASSIGN,
-  AND_ASSIGN,
-  XOR_ASSIGN,
-  OR_ASSIGN,
-  RIGHT_OP,
-  LEFT_OP,
-  INC_OP,
-  DEC_OP,
-  PTR_OP,
-  AND_OP,
-  OR_OP,
-  LE_OP,
-  GE_OP,
-  EQ_OP,
-  NE_OP,
-  SEMICOL,
-  OCURLYBRACE,
-  CCURLYBRACE,
-  COMMA,
-  COLON,
-  EQUAL,
-  OPARAN,
-  CPARAN,
-  OSQUAREBRACE,
-  CSQUAREBRACE,
-  DOT,
-  AMPER,
-  EXCLAMATION,
-  TILDE,
-  MINUS,
-  PLUS,
-  STAR,
-  SLASH,
-  PERCENT,
-  RANGLE,
-  LANGLE,
-  CARET,
-  PIPE,
-  QUESTION,
-  STRINGLITERAL,
-  CONSTANT,
-  IDENTIFIER,
-} TokenKind;
-
-const char * const tokenKindStr[] = {
-  [EOF] = "EOF",
-  [AUTO] = "AUTO",
-  [BOOL] = "BOOL",
-  [BREAK] = "BREAK",
-  [CASE] = "CASE",
-  [CHAR] = "CHAR",
-  [COMPLEX] = "COMPLEX",
-  [CONST] = "CONST",
-  [CONTINUE] = "CONTINUE",
-  [DEFAULT] = "DEFAULT",
-  [DO] = "DO",
-  [DOUBLE] = "DOUBLE",
-  [ELSE] = "ELSE",
-  [ENUM] = "ENUM",
-  [EXTERN] = "EXTERN",
-  [FLOAT] = "FLOAT",
-  [FOR] = "FOR",
-  [GOTO] = "GOTO",
-  [IF] = "IF",
-  [IMAGINARY] = "IMAGINARY",
-  [INLINE] = "INLINE",
-  [INT] = "INT",
-  [LONG] = "LONG",
-  [REGISTER] = "REGISTER",
-  [RESTRICT] = "RESTRICT",
-  [RETURN] = "RETURN",
-  [SHORT] = "SHORT",
-  [SIGNED] = "SIGNED",
-  [SIZEOF] = "SIZEOF",
-  [STATIC] = "STATIC",
-  [STRUCT] = "STRUCT",
-  [SWITCH] = "SWITCH",
-  [TYPEDEF] = "TYPEDEF",
-  [UNION] = "UNION",
-  [UNSIGNED] = "UNSIGNED",
-  [VOID] = "VOID",
-  [VOLATILE] = "VOLATILE",
-  [WHILE] = "WHILE",
-  [ELLIPSIS] = "ELLIPSIS",
-  [RIGHT_ASSIGN] = "RIGHT_ASSIGN",
-  [LEFT_ASSIGN] = "LEFT_ASSIGN",
-  [ADD_ASSIGN] = "ADD_ASSIGN",
-  [SUB_ASSIGN] = "SUB_ASSIGN",
-  [MUL_ASSIGN] = "MUL_ASSIGN",
-  [DIV_ASSIGN] = "DIV_ASSIGN",
-  [MOD_ASSIGN] = "MOD_ASSIGN",
-  [AND_ASSIGN] = "AND_ASSIGN",
-  [XOR_ASSIGN] = "XOR_ASSIGN",
-  [OR_ASSIGN] = "OR_ASSIGN",
-  [RIGHT_OP] = "RIGHT_OP",
-  [LEFT_OP] = "LEFT_OP",
-  [INC_OP] = "INC_OP",
-  [DEC_OP] = "DEC_OP",
-  [PTR_OP] = "PTR_OP",
-  [AND_OP] = "AND_OP",
-  [OR_OP] = "OR_OP",
-  [LE_OP] = "LE_OP",
-  [GE_OP] = "GE_OP",
-  [EQ_OP] = "EQ_OP",
-  [NE_OP] = "NE_OP",
-  [SEMICOL] = "SEMICOL",
-  [OCURLYBRACE] = "OCURLYBRACE",
-  [CCURLYBRACE] = "CCURLYBRACE",
-  [COMMA] = "COMMA",
-  [COLON] = "COLON",
-  [EQUAL] = "EQUAL",
-  [OPARAN] = "OPARAN",
-  [CPARAN] = "CPARAN",
-  [OSQUAREBRACE] = "OSQUAREBRACE",
-  [CSQUAREBRACE] = "CSQUAREBRACE",
-  [DOT] = "DOT",
-  [AMPER] = "AMPER",
-  [EXCLAMATION] = "EXCLAMATION",
-  [TILDE] = "TILDE",
-  [MINUS] = "MINUS",
-  [PLUS] = "PLUS",
-  [STAR] = "STAR",
-  [SLASH] = "SLASH",
-  [PERCENT] = "PERCENT",
-  [RANGLE] = "RANGLE",
-  [LANGLE] = "LANGLE",
-  [CARET] = "CARET",
-  [PIPE] = "PIPE",
-  [QUESTION] = "QUESTION",
-  [STRINGLITERAL] = "STRINGLITERAL",
-  [CONSTANT] = "CONSTANT",
-  [IDENTIFIER] = "IDENTIFIER",
-};
-
-int main(int argc, char *argv[]) {
-  clexRegisterKind("auto", AUTO);
-  clexRegisterKind("_Bool", BOOL);
-  clexRegisterKind("break", BREAK);
-  clexRegisterKind("case", CASE);
-  clexRegisterKind("char", CHAR);
-  clexRegisterKind("_Complex", COMPLEX);
-  clexRegisterKind("const", CONST);
-  clexRegisterKind("continue", CONTINUE);
-  clexRegisterKind("default", DEFAULT);
-  clexRegisterKind("do", DO);
-  clexRegisterKind("double", DOUBLE);
-  clexRegisterKind("else", ELSE);
-  clexRegisterKind("enum", ENUM);
-  clexRegisterKind("extern", EXTERN);
-  clexRegisterKind("float", FLOAT);
-  clexRegisterKind("for", FOR);
-  clexRegisterKind("goto", GOTO);
-  clexRegisterKind("if", IF);
-  clexRegisterKind("_Imaginary", IMAGINARY);
-  clexRegisterKind("inline", INLINE);
-  clexRegisterKind("int", INT);
-  clexRegisterKind("long", LONG);
-  clexRegisterKind("register", REGISTER);
-  clexRegisterKind("restrict", RESTRICT);
-  clexRegisterKind("return", RETURN);
-  clexRegisterKind("short", SHORT);
-  clexRegisterKind("signed", SIGNED);
-  clexRegisterKind("sizeof", SIZEOF);
-  clexRegisterKind("static", STATIC);
-  clexRegisterKind("struct", STRUCT);
-  clexRegisterKind("switch", SWITCH);
-  clexRegisterKind("typedef", TYPEDEF);
-  clexRegisterKind("union", UNION);
-  clexRegisterKind("unsigned", UNSIGNED);
-  clexRegisterKind("void", VOID);
-  clexRegisterKind("volatile", VOLATILE);
-  clexRegisterKind("while", WHILE);
-  clexRegisterKind("...", ELLIPSIS);
-  clexRegisterKind(">>=", RIGHT_ASSIGN);
-  clexRegisterKind("<<=", LEFT_ASSIGN);
-  clexRegisterKind("\\+=", ADD_ASSIGN);
-  clexRegisterKind("-=", SUB_ASSIGN);
-  clexRegisterKind("\\*=", MUL_ASSIGN);
-  clexRegisterKind("/=", DIV_ASSIGN);
-  clexRegisterKind("%=", MOD_ASSIGN);
-  clexRegisterKind("&=", AND_ASSIGN);
-  clexRegisterKind("^=", XOR_ASSIGN);
-  clexRegisterKind("\\|=", OR_ASSIGN);
-  clexRegisterKind(">>", RIGHT_OP);
-  clexRegisterKind("<<", LEFT_OP);
-  clexRegisterKind("\\+\\+", INC_OP);
-  clexRegisterKind("--", DEC_OP);
-  clexRegisterKind("->", PTR_OP);
-  clexRegisterKind("&&", AND_OP);
-  clexRegisterKind("\\|\\|", OR_OP);
-  clexRegisterKind("<=", LE_OP);
-  clexRegisterKind(">=", GE_OP);
-  clexRegisterKind("==", EQ_OP);
-  clexRegisterKind("!=", NE_OP);
-  clexRegisterKind(";", SEMICOL);
-  clexRegisterKind("{|<%", OCURLYBRACE);
-  clexRegisterKind("}|%>", CCURLYBRACE);
-  clexRegisterKind(",", COMMA);
-  clexRegisterKind(":", COLON);
-  clexRegisterKind("=", EQUAL);
-  clexRegisterKind("\\(", OPARAN);
-  clexRegisterKind("\\)", CPARAN);
-  clexRegisterKind("\\[|<:", OSQUAREBRACE);
-  clexRegisterKind("\\]|:>", CSQUAREBRACE);
-  clexRegisterKind(".", DOT);
-  clexRegisterKind("&", AMPER);
-  clexRegisterKind("!", EXCLAMATION);
-  clexRegisterKind("~", TILDE);
-  clexRegisterKind("-", MINUS);
-  clexRegisterKind("\\+", PLUS);
-  clexRegisterKind("\\*", STAR);
-  clexRegisterKind("/", SLASH);
-  clexRegisterKind("%", PERCENT);
-  clexRegisterKind("<", RANGLE);
-  clexRegisterKind(">", LANGLE);
-  clexRegisterKind("^", CARET);
-  clexRegisterKind("\\|", PIPE);
-  clexRegisterKind("\\?", QUESTION);
-  clexRegisterKind("L?\"[ -~]*\"", STRINGLITERAL);
-  clexRegisterKind("0[xX][a-fA-F0-9]+([uU])?([lL])?([lL])?", CONSTANT);
-  clexRegisterKind("0[0-7]*([uU])?([lL])?([lL])?", CONSTANT);
-  clexRegisterKind("[1-9][0-9]*([uU])?([lL])?([lL])?", CONSTANT);
-  clexRegisterKind("L?'[ -~]*'", CONSTANT);
-  clexRegisterKind("[0-9]+[Ee][+-]?[0-9]+[fFlL]", CONSTANT);
-  clexRegisterKind("[0-9]*.[0-9]+[Ee][+-]?[fFlL]", CONSTANT);
-  clexRegisterKind("[0-9]+.[0-9]*[Ee][+-]?[fFlL]", CONSTANT);
-  clexRegisterKind("0[xX][a-fA-F0-9]+[Pp][+-]?[0-9]+([fFlL])?", CONSTANT);
-  clexRegisterKind("0[xX][a-fA-F0-9]*.[a-fA-F0-9]+[Pp][+-]?[0-9]+([fFlL])?", CONSTANT);
-  clexRegisterKind("0[xX][a-fA-F0-9]+.[a-fA-F0-9]+[Pp][+-]?[0-9]+([fFlL])?", CONSTANT);
-  clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
-
-  char grammarString[] = "S -> translation_unit\n"
-"primary_expression -> IDENTIFIER | CONSTANT | STRING_LITERAL | OPARAN expression CPARAN\n"
-"postfix_expression -> primary_expression | postfix_expression OSQUAREBRACE expression CSQUAREBRACE | postfix_expression OPARAN CPARAN | postfix_expression OPARAN argument_expression_list CPARAN | postfix_expression DOT IDENTIFIER | postfix_expression PTR_OP IDENTIFIER | postfix_expression INC_OP | postfix_expression DEC_OP | OPARAN type_name CPARAN OCURLYBRACE initializer_list CCURLYBRACE | OPARAN type_name CPARAN OCURLYBRACE initializer_list COMMA CCURLYBRACE\n"
-"argument_expression_list -> assignment_expression | argument_expression_list COMMA assignment_expression\n"
-"unary_expression -> postfix_expression | INC_OP unary_expression | DEC_OP unary_expression | unary_operator cast_expression | SIZEOF unary_expression | SIZEOF OPARAN type_name CPARAN\n"
-"unary_operator -> AMPER | STAR | PLUS | MINUS | TILDE | EXCLAMATION\n"
-"cast_expression -> unary_expression | OPARAN type_name CPARAN cast_expression\n"
-"multiplicative_expression -> cast_expression | multiplicative_expression STAR cast_expression | multiplicative_expression SLASH cast_expression | multiplicative_expression PERCENT cast_expression\n"
-"additive_expression -> multiplicative_expression | additive_expression PLUS multiplicative_expression | additive_expression MINUS multiplicative_expression\n"
-"shift_expression -> additive_expression | shift_expression LEFT_OP additive_expression | shift_expression RIGHT_OP additive_expression\n"
-"relational_expression -> shift_expression | relational_expression RANGLE shift_expression | relational_expression LANGLE shift_expression | relational_expression LE_OP shift_expression | relational_expression GE_OP shift_expression\n"
-"equality_expression -> relational_expression | equality_expression EQ_OP relational_expression | equality_expression NE_OP relational_expression\n"
-"and_expression -> equality_expression | and_expression AMPER equality_expression\n"
-"exclusive_or_expression -> and_expression | exclusive_or_expression CARET and_expression\n"
-"inclusive_or_expression -> exclusive_or_expression | inclusive_or_expression PIPE exclusive_or_expression\n"
-"logical_and_expression -> inclusive_or_expression | logical_and_expression AND_OP inclusive_or_expression\n"
-"logical_or_expression -> logical_and_expression | logical_or_expression OR_OP logical_and_expression\n"
-"conditional_expression -> logical_or_expression | logical_or_expression QUESTION expression COLON conditional_expression\n"
-"assignment_expression -> conditional_expression | unary_expression assignment_operator assignment_expression\n"
-"assignment_operator -> EQUAL | MUL_ASSIGN | DIV_ASSIGN | MOD_ASSIGN | ADD_ASSIGN | SUB_ASSIGN | LEFT_ASSIGN | RIGHT_ASSIGN | AND_ASSIGN | XOR_ASSIGN | OR_ASSIGN\n"
-"expression -> assignment_expression | expression COMMA assignment_expression\n"
-"constant_expression -> conditional_expression\n"
-"declaration -> declaration_specifiers SEMICOL | declaration_specifiers init_declarator_list SEMICOL\n"
-"declaration_specifiers -> storage_class_specifier | storage_class_specifier declaration_specifiers | type_specifier | type_specifier declaration_specifiers | type_qualifier | type_qualifier declaration_specifiers | function_specifier | function_specifier declaration_specifiers\n"
-"init_declarator_list -> init_declarator | init_declarator_list COMMA init_declarator\n"
-"init_declarator -> declarator | declarator EQUAL initializer\n"
-"storage_class_specifier -> TYPEDEF | EXTERN | STATIC | AUTO | REGISTER\n"
-"type_specifier -> VOID | CHAR | SHORT | INT | LONG | FLOAT | DOUBLE | SIGNED | UNSIGNED | BOOL | COMPLEX | IMAGINARY | struct_or_union_specifier | enum_specifier | TYPE_NAME\n"
-"struct_or_union_specifier -> struct_or_union IDENTIFIER OCURLYBRACE struct_declaration_list CCURLYBRACE | struct_or_union OCURLYBRACE struct_declaration_list CCURLYBRACE | struct_or_union IDENTIFIER\n"
-"struct_or_union -> STRUCT | UNION\n"
-"struct_declaration_list -> struct_declaration | struct_declaration_list struct_declaration\n"
-"struct_declaration -> specifier_qualifier_list struct_declarator_list SEMICOL\n"
-"specifier_qualifier_list -> type_specifier specifier_qualifier_list | type_specifier | type_qualifier specifier_qualifier_list | type_qualifier\n"
-"struct_declarator_list -> struct_declarator | struct_declarator_list COMMA struct_declarator\n"
-"struct_declarator -> declarator | COLON constant_expression | declarator COLON constant_expression\n"
-"enum_specifier -> ENUM OCURLYBRACE enumerator_list CCURLYBRACE | ENUM IDENTIFIER OCURLYBRACE enumerator_list CCURLYBRACE | ENUM OCURLYBRACE enumerator_list COMMA CCURLYBRACE | ENUM IDENTIFIER OCURLYBRACE enumerator_list COMMA CCURLYBRACE | ENUM IDENTIFIER\n"
-"enumerator_list -> enumerator | enumerator_list COMMA enumerator\n"
-"enumerator -> IDENTIFIER | IDENTIFIER EQUAL constant_expression\n"
-"type_qualifier -> CONST | RESTRICT | VOLATILE\n"
-"function_specifier -> INLINE\n"
-"declarator -> pointer direct_declarator | direct_declarator\n"
-"direct_declarator -> IDENTIFIER | OPARAN declarator CPARAN | direct_declarator OSQUAREBRACE type_qualifier_list assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE type_qualifier_list CSQUAREBRACE | direct_declarator OSQUAREBRACE assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE STATIC type_qualifier_list assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE type_qualifier_list STATIC assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE type_qualifier_list STAR CSQUAREBRACE | direct_declarator OSQUAREBRACE STAR CSQUAREBRACE | direct_declarator OSQUAREBRACE CSQUAREBRACE | direct_declarator OPARAN parameter_type_list CPARAN | direct_declarator OPARAN identifier_list CPARAN | direct_declarator OPARAN CPARAN\n"
-"pointer -> STAR | STAR type_qualifier_list | STAR pointer | STAR type_qualifier_list pointer\n"
-"type_qualifier_list -> type_qualifier | type_qualifier_list type_qualifier\n"
-"parameter_type_list -> parameter_list | parameter_list COMMA ELLIPSIS\n"
-"parameter_list -> parameter_declaration | parameter_list COMMA parameter_declaration\n"
-"parameter_declaration -> declaration_specifiers declarator | declaration_specifiers abstract_declarator | declaration_specifiers\n"
-"identifier_list -> IDENTIFIER | identifier_list COMMA IDENTIFIER\n"
-"type_name -> specifier_qualifier_list | specifier_qualifier_list abstract_declarator\n"
-"abstract_declarator -> pointer | direct_abstract_declarator | pointer direct_abstract_declarator\n"
-"direct_abstract_declarator -> OPARAN abstract_declarator CPARAN | OSQUAREBRACE CSQUAREBRACE | OSQUAREBRACE assignment_expression CSQUAREBRACE | direct_abstract_declarator OSQUAREBRACE CSQUAREBRACE | direct_abstract_declarator OSQUAREBRACE assignment_expression CSQUAREBRACE | OSQUAREBRACE STAR CSQUAREBRACE | direct_abstract_declarator OSQUAREBRACE STAR CSQUAREBRACE | OPARAN CPARAN | OPARAN parameter_type_list CPARAN | direct_abstract_declarator OPARAN CPARAN | direct_abstract_declarator OPARAN parameter_type_list CPARAN\n"
-"initializer -> assignment_expression | OCURLYBRACE initializer_list CCURLYBRACE | OCURLYBRACE initializer_list COMMA CCURLYBRACE\n"
-"initializer_list -> initializer | designation initializer | initializer_list COMMA initializer | initializer_list COMMA designation initializer\n"
-"designation -> designator_list EQUAL\n"
-"designator_list -> designator | designator_list designator\n"
-"designator -> OSQUAREBRACE constant_expression CSQUAREBRACE | DOT IDENTIFIER\n"
-"statement -> labeled_statement | compound_statement | expression_statement | selection_statement | iteration_statement | jump_statement\n"
-"labeled_statement -> IDENTIFIER COLON statement | CASE constant_expression COLON statement | DEFAULT COLON statement\n"
-"compound_statement -> OCURLYBRACE CCURLYBRACE | OCURLYBRACE block_item_list CCURLYBRACE\n"
-"block_item_list -> block_item | block_item_list block_item\n"
-"block_item -> declaration | statement\n"
-"expression_statement -> SEMICOL | expression SEMICOL\n"
-"selection_statement -> IF OPARAN expression CPARAN statement | IF OPARAN expression CPARAN statement ELSE statement | SWITCH OPARAN expression CPARAN statement\n"
-"iteration_statement -> WHILE OPARAN expression CPARAN statement | DO statement WHILE OPARAN expression CPARAN SEMICOL | FOR OPARAN expression_statement expression_statement CPARAN statement | FOR OPARAN expression_statement expression_statement expression CPARAN statement | FOR OPARAN declaration expression_statement CPARAN statement | FOR OPARAN declaration expression_statement expression CPARAN statement\n"
-"jump_statement -> GOTO IDENTIFIER SEMICOL | CONTINUE SEMICOL | BREAK SEMICOL | RETURN SEMICOL | RETURN expression SEMICOL\n"
-"translation_unit -> external_declaration | translation_unit external_declaration\n"
-"external_declaration -> function_definition | declaration\n"
-"function_definition -> declaration_specifiers declarator declaration_list compound_statement | declaration_specifiers declarator compound_statement\n"
-"declaration_list -> declaration | declaration_list declaration\n";
-
-  Grammar *grammar = cparseGrammar(grammarString);
-  printf("%s\n", getGrammarAsString(grammar));
-
-  LR1Parser *parser = cparseCreateLR1Parser(grammar, tokenKindStr);
-  printf("%s\n", getLR1ParserAsString(parser));
-
-  printf("%d\n", cparseAccept(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}"));
-
-  ParseTreeNode *node = cparse(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}");
-  printf("%s\n", getParseTreeAsString(node));
-}
-
-#endif
-
-#ifdef TEST_CPARSE4
-
 #include "cparse.h"
-#include "clex/clex.h"
-#include <stdio.h>
-#include <assert.h>
-#include <string.h>
-
-// Create an enum for token types
-typedef enum TokenKind {
-  RETURN,
-  SEMICOL,
-  IDENTIFIER,
-} TokenKind;
-
-// Provide a string representation for each token type to be used in the grammar
-const char * const tokenKindStr[] = {
-  [RETURN] = "RETURN",
-  [SEMICOL] = "SEMICOL",
-  [IDENTIFIER] = "IDENTIFIER",
-};
-
-int main(int argc, char *argv[]) {
-  // Register your token types with `clex`
-  clexRegisterKind("return", RETURN);
-  clexRegisterKind(";", SEMICOL);
-  clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
-
-  // Write your grammar
-  char grammarString[] =
-    "S -> A IDENTIFIER SEMICOL\n"
-    "A -> RETURN";
-
-  // Parse your grammar
-  Grammar *grammar = cparseGrammar(grammarString);
-  // Construct an LR(1) parser
-  LR1Parser *parser = cparseCreateLR1Parser(grammar, tokenKindStr);
-
-  // Test if given input is valid within the grammar
-  assert(cparseAccept(parser, "return id1;") == true);
-
-  // Parse a given input and get a parse tree
-  ParseTreeNode *node = cparse(parser, "return id1;");
-
-  // Use your parse tree
-  assert(strcmp(node->value, "S") == 0);
-  assert(strcmp(node->children[0]->value, "SEMICOL") == 0);
-  assert(node->children[0]->token.kind == SEMICOL);
-  assert(strcmp(node->children[0]->token.lexeme, ";") == 0);
-  assert(strcmp(node->children[1]->value, "IDENTIFIER") == 0);
-  assert(node->children[1]->token.kind == IDENTIFIER);
-  assert(strcmp(node->children[1]->token.lexeme, "id1") == 0);
-  assert(strcmp(node->children[2]->value, "A") == 0);
-  assert(strcmp(node->children[2]->children[0]->value, "RETURN") == 0);
-  assert(node->children[2]->children[0]->token.kind == RETURN);
-  assert(strcmp(node->children[2]->children[0]->token.lexeme, "return") == 0);
-}
-
-#endif
-
-#ifdef TEST_CPARSE5
-
-#include "cparse.h"
-#include "clex/clex.h"
-#include <stdio.h>
-#include <assert.h>
-#include <string.h>
-
-// Create an enum for token types
-typedef enum TokenKind {
-  RETURN,
-  SEMICOL,
-  IDENTIFIER,
-} TokenKind;
-
-// Provide a string representation for each token type to be used in the grammar
-const char * const tokenKindStr[] = {
-  [RETURN] = "RETURN",
-  [SEMICOL] = "SEMICOL",
-  [IDENTIFIER] = "IDENTIFIER",
-};
-
-int main(int argc, char *argv[]) {
-  // Register your token types with `clex`
-  clexRegisterKind("return", RETURN);
-  clexRegisterKind(";", SEMICOL);
-  clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
-
-  // Write your grammar
-  char grammarString[] =
-    "S -> A IDENTIFIER SEMICOL\n"
-    "A -> RETURN";
-
-  // Parse your grammar
-  Grammar *grammar = cparseGrammar(grammarString);
-  // Construct an LALR(1) parser
-  LALR1Parser *parser = cparseCreateLALR1Parser(grammar, tokenKindStr);
-
-  // Test if given input is valid within the grammar
-  assert(cparseAccept(parser, "return id1;") == true);
-
-  // Parse a given input and get a parse tree
-  ParseTreeNode *node = cparse(parser, "return id1;");
-
-  // Use your parse tree
-  assert(strcmp(node->value, "S") == 0);
-  assert(strcmp(node->children[0]->value, "SEMICOL") == 0);
-  assert(node->children[0]->token.kind == SEMICOL);
-  assert(strcmp(node->children[0]->token.lexeme, ";") == 0);
-  assert(strcmp(node->children[1]->value, "IDENTIFIER") == 0);
-  assert(node->children[1]->token.kind == IDENTIFIER);
-  assert(strcmp(node->children[1]->token.lexeme, "id1") == 0);
-  assert(strcmp(node->children[2]->value, "A") == 0);
-  assert(strcmp(node->children[2]->children[0]->value, "RETURN") == 0);
-  assert(node->children[2]->children[0]->token.kind == RETURN);
-  assert(strcmp(node->children[2]->children[0]->token.lexeme, "return") == 0);
-}
-
-#endif
-
-#ifdef TEST_CPARSE6
-
 #include "grammar.h"
 #include "lr1_lalr1.h"
-#include "clex/clex.h"
-#include <stdio.h>
-#include <assert.h>
-#include <string.h>
 
-#undef EOF
+static int failures = 0;
 
-typedef enum TokenKind {
-  EOF,
-  AUTO,
-  BOOL,
-  BREAK,
-  CASE,
-  CHAR,
-  COMPLEX,
-  CONST,
-  CONTINUE,
-  DEFAULT,
-  DO,
-  DOUBLE,
-  ELSE,
-  ENUM,
-  EXTERN,
-  FLOAT,
-  FOR,
-  GOTO,
-  IF,
-  IMAGINARY,
-  INLINE,
-  INT,
-  LONG,
-  REGISTER,
-  RESTRICT,
-  RETURN,
-  SHORT,
-  SIGNED,
-  SIZEOF,
-  STATIC,
-  STRUCT,
-  SWITCH,
-  TYPEDEF,
-  UNION,
-  UNSIGNED,
-  VOID,
-  VOLATILE,
-  WHILE,
-  ELLIPSIS,
-  RIGHT_ASSIGN,
-  LEFT_ASSIGN,
-  ADD_ASSIGN,
-  SUB_ASSIGN,
-  MUL_ASSIGN,
-  DIV_ASSIGN,
-  MOD_ASSIGN,
-  AND_ASSIGN,
-  XOR_ASSIGN,
-  OR_ASSIGN,
-  RIGHT_OP,
-  LEFT_OP,
-  INC_OP,
-  DEC_OP,
-  PTR_OP,
-  AND_OP,
-  OR_OP,
-  LE_OP,
-  GE_OP,
-  EQ_OP,
-  NE_OP,
-  SEMICOL,
-  OCURLYBRACE,
-  CCURLYBRACE,
-  COMMA,
-  COLON,
-  EQUAL,
-  OPARAN,
-  CPARAN,
-  OSQUAREBRACE,
-  CSQUAREBRACE,
-  DOT,
-  AMPER,
-  EXCLAMATION,
-  TILDE,
-  MINUS,
-  PLUS,
-  STAR,
-  SLASH,
-  PERCENT,
-  RANGLE,
-  LANGLE,
-  CARET,
-  PIPE,
-  QUESTION,
-  STRINGLITERAL,
-  CONSTANT,
-  IDENTIFIER,
-} TokenKind;
+#define EXPECT_TRUE(cond, msg)                                        \
+  do {                                                                \
+    if (!(cond)) {                                                    \
+      fprintf(stderr, "[FAIL] %s:%d: %s\n", __FILE__, __LINE__, msg); \
+      failures++;                                                     \
+    }                                                                 \
+  } while (0)
 
-const char * const tokenKindStr[] = {
-  [EOF] = "EOF",
-  [AUTO] = "AUTO",
-  [BOOL] = "BOOL",
-  [BREAK] = "BREAK",
-  [CASE] = "CASE",
-  [CHAR] = "CHAR",
-  [COMPLEX] = "COMPLEX",
-  [CONST] = "CONST",
-  [CONTINUE] = "CONTINUE",
-  [DEFAULT] = "DEFAULT",
-  [DO] = "DO",
-  [DOUBLE] = "DOUBLE",
-  [ELSE] = "ELSE",
-  [ENUM] = "ENUM",
-  [EXTERN] = "EXTERN",
-  [FLOAT] = "FLOAT",
-  [FOR] = "FOR",
-  [GOTO] = "GOTO",
-  [IF] = "IF",
-  [IMAGINARY] = "IMAGINARY",
-  [INLINE] = "INLINE",
-  [INT] = "INT",
-  [LONG] = "LONG",
-  [REGISTER] = "REGISTER",
-  [RESTRICT] = "RESTRICT",
-  [RETURN] = "RETURN",
-  [SHORT] = "SHORT",
-  [SIGNED] = "SIGNED",
-  [SIZEOF] = "SIZEOF",
-  [STATIC] = "STATIC",
-  [STRUCT] = "STRUCT",
-  [SWITCH] = "SWITCH",
-  [TYPEDEF] = "TYPEDEF",
-  [UNION] = "UNION",
-  [UNSIGNED] = "UNSIGNED",
-  [VOID] = "VOID",
-  [VOLATILE] = "VOLATILE",
-  [WHILE] = "WHILE",
-  [ELLIPSIS] = "ELLIPSIS",
-  [RIGHT_ASSIGN] = "RIGHT_ASSIGN",
-  [LEFT_ASSIGN] = "LEFT_ASSIGN",
-  [ADD_ASSIGN] = "ADD_ASSIGN",
-  [SUB_ASSIGN] = "SUB_ASSIGN",
-  [MUL_ASSIGN] = "MUL_ASSIGN",
-  [DIV_ASSIGN] = "DIV_ASSIGN",
-  [MOD_ASSIGN] = "MOD_ASSIGN",
-  [AND_ASSIGN] = "AND_ASSIGN",
-  [XOR_ASSIGN] = "XOR_ASSIGN",
-  [OR_ASSIGN] = "OR_ASSIGN",
-  [RIGHT_OP] = "RIGHT_OP",
-  [LEFT_OP] = "LEFT_OP",
-  [INC_OP] = "INC_OP",
-  [DEC_OP] = "DEC_OP",
-  [PTR_OP] = "PTR_OP",
-  [AND_OP] = "AND_OP",
-  [OR_OP] = "OR_OP",
-  [LE_OP] = "LE_OP",
-  [GE_OP] = "GE_OP",
-  [EQ_OP] = "EQ_OP",
-  [NE_OP] = "NE_OP",
-  [SEMICOL] = "SEMICOL",
-  [OCURLYBRACE] = "OCURLYBRACE",
-  [CCURLYBRACE] = "CCURLYBRACE",
-  [COMMA] = "COMMA",
-  [COLON] = "COLON",
-  [EQUAL] = "EQUAL",
-  [OPARAN] = "OPARAN",
-  [CPARAN] = "CPARAN",
-  [OSQUAREBRACE] = "OSQUAREBRACE",
-  [CSQUAREBRACE] = "CSQUAREBRACE",
-  [DOT] = "DOT",
-  [AMPER] = "AMPER",
-  [EXCLAMATION] = "EXCLAMATION",
-  [TILDE] = "TILDE",
-  [MINUS] = "MINUS",
-  [PLUS] = "PLUS",
-  [STAR] = "STAR",
-  [SLASH] = "SLASH",
-  [PERCENT] = "PERCENT",
-  [RANGLE] = "RANGLE",
-  [LANGLE] = "LANGLE",
-  [CARET] = "CARET",
-  [PIPE] = "PIPE",
-  [QUESTION] = "QUESTION",
-  [STRINGLITERAL] = "STRINGLITERAL",
-  [CONSTANT] = "CONSTANT",
-  [IDENTIFIER] = "IDENTIFIER",
-};
+#define EXPECT_STREQ(actual, expected, msg)                           \
+  do {                                                                \
+    if (strcmp((actual), (expected)) != 0) {                          \
+      fprintf(stderr, "[FAIL] %s:%d: %s (got '%s', expected '%s')\n", \
+              __FILE__, __LINE__, msg, (actual), (expected));         \
+      failures++;                                                     \
+    }                                                                 \
+  } while (0)
 
-int main(int argc, char *argv[]) {
-  clexRegisterKind("auto", AUTO);
-  clexRegisterKind("_Bool", BOOL);
-  clexRegisterKind("break", BREAK);
-  clexRegisterKind("case", CASE);
-  clexRegisterKind("char", CHAR);
-  clexRegisterKind("_Complex", COMPLEX);
-  clexRegisterKind("const", CONST);
-  clexRegisterKind("continue", CONTINUE);
-  clexRegisterKind("default", DEFAULT);
-  clexRegisterKind("do", DO);
-  clexRegisterKind("double", DOUBLE);
-  clexRegisterKind("else", ELSE);
-  clexRegisterKind("enum", ENUM);
-  clexRegisterKind("extern", EXTERN);
-  clexRegisterKind("float", FLOAT);
-  clexRegisterKind("for", FOR);
-  clexRegisterKind("goto", GOTO);
-  clexRegisterKind("if", IF);
-  clexRegisterKind("_Imaginary", IMAGINARY);
-  clexRegisterKind("inline", INLINE);
-  clexRegisterKind("int", INT);
-  clexRegisterKind("long", LONG);
-  clexRegisterKind("register", REGISTER);
-  clexRegisterKind("restrict", RESTRICT);
-  clexRegisterKind("return", RETURN);
-  clexRegisterKind("short", SHORT);
-  clexRegisterKind("signed", SIGNED);
-  clexRegisterKind("sizeof", SIZEOF);
-  clexRegisterKind("static", STATIC);
-  clexRegisterKind("struct", STRUCT);
-  clexRegisterKind("switch", SWITCH);
-  clexRegisterKind("typedef", TYPEDEF);
-  clexRegisterKind("union", UNION);
-  clexRegisterKind("unsigned", UNSIGNED);
-  clexRegisterKind("void", VOID);
-  clexRegisterKind("volatile", VOLATILE);
-  clexRegisterKind("while", WHILE);
-  clexRegisterKind("...", ELLIPSIS);
-  clexRegisterKind(">>=", RIGHT_ASSIGN);
-  clexRegisterKind("<<=", LEFT_ASSIGN);
-  clexRegisterKind("\\+=", ADD_ASSIGN);
-  clexRegisterKind("-=", SUB_ASSIGN);
-  clexRegisterKind("\\*=", MUL_ASSIGN);
-  clexRegisterKind("/=", DIV_ASSIGN);
-  clexRegisterKind("%=", MOD_ASSIGN);
-  clexRegisterKind("&=", AND_ASSIGN);
-  clexRegisterKind("^=", XOR_ASSIGN);
-  clexRegisterKind("\\|=", OR_ASSIGN);
-  clexRegisterKind(">>", RIGHT_OP);
-  clexRegisterKind("<<", LEFT_OP);
-  clexRegisterKind("\\+\\+", INC_OP);
-  clexRegisterKind("--", DEC_OP);
-  clexRegisterKind("->", PTR_OP);
-  clexRegisterKind("&&", AND_OP);
-  clexRegisterKind("\\|\\|", OR_OP);
-  clexRegisterKind("<=", LE_OP);
-  clexRegisterKind(">=", GE_OP);
-  clexRegisterKind("==", EQ_OP);
-  clexRegisterKind("!=", NE_OP);
-  clexRegisterKind(";", SEMICOL);
-  clexRegisterKind("{|<%", OCURLYBRACE);
-  clexRegisterKind("}|%>", CCURLYBRACE);
-  clexRegisterKind(",", COMMA);
-  clexRegisterKind(":", COLON);
-  clexRegisterKind("=", EQUAL);
-  clexRegisterKind("\\(", OPARAN);
-  clexRegisterKind("\\)", CPARAN);
-  clexRegisterKind("\\[|<:", OSQUAREBRACE);
-  clexRegisterKind("\\]|:>", CSQUAREBRACE);
-  clexRegisterKind(".", DOT);
-  clexRegisterKind("&", AMPER);
-  clexRegisterKind("!", EXCLAMATION);
-  clexRegisterKind("~", TILDE);
-  clexRegisterKind("-", MINUS);
-  clexRegisterKind("\\+", PLUS);
-  clexRegisterKind("\\*", STAR);
-  clexRegisterKind("/", SLASH);
-  clexRegisterKind("%", PERCENT);
-  clexRegisterKind("<", RANGLE);
-  clexRegisterKind(">", LANGLE);
-  clexRegisterKind("^", CARET);
-  clexRegisterKind("\\|", PIPE);
-  clexRegisterKind("\\?", QUESTION);
-  clexRegisterKind("L?\"[ -~]*\"", STRINGLITERAL);
-  clexRegisterKind("0[xX][a-fA-F0-9]+([uU])?([lL])?([lL])?", CONSTANT);
-  clexRegisterKind("0[0-7]*([uU])?([lL])?([lL])?", CONSTANT);
-  clexRegisterKind("[1-9][0-9]*([uU])?([lL])?([lL])?", CONSTANT);
-  clexRegisterKind("L?'[ -~]*'", CONSTANT);
-  clexRegisterKind("[0-9]+[Ee][+-]?[0-9]+[fFlL]", CONSTANT);
-  clexRegisterKind("[0-9]*.[0-9]+[Ee][+-]?[fFlL]", CONSTANT);
-  clexRegisterKind("[0-9]+.[0-9]*[Ee][+-]?[fFlL]", CONSTANT);
-  clexRegisterKind("0[xX][a-fA-F0-9]+[Pp][+-]?[0-9]+([fFlL])?", CONSTANT);
-  clexRegisterKind("0[xX][a-fA-F0-9]*.[a-fA-F0-9]+[Pp][+-]?[0-9]+([fFlL])?", CONSTANT);
-  clexRegisterKind("0[xX][a-fA-F0-9]+.[a-fA-F0-9]+[Pp][+-]?[0-9]+([fFlL])?", CONSTANT);
-  clexRegisterKind("[a-zA-Z_]([a-zA-Z_]|[0-9])*", IDENTIFIER);
+typedef struct {
+  const char *pattern;
+  int kind;
+  const char *label;
+} TokenSpec;
 
-  char grammarString[] = "S -> translation_unit\n"
-"primary_expression -> IDENTIFIER | CONSTANT | STRING_LITERAL | OPARAN expression CPARAN\n"
-"postfix_expression -> primary_expression | postfix_expression OSQUAREBRACE expression CSQUAREBRACE | postfix_expression OPARAN CPARAN | postfix_expression OPARAN argument_expression_list CPARAN | postfix_expression DOT IDENTIFIER | postfix_expression PTR_OP IDENTIFIER | postfix_expression INC_OP | postfix_expression DEC_OP | OPARAN type_name CPARAN OCURLYBRACE initializer_list CCURLYBRACE | OPARAN type_name CPARAN OCURLYBRACE initializer_list COMMA CCURLYBRACE\n"
-"argument_expression_list -> assignment_expression | argument_expression_list COMMA assignment_expression\n"
-"unary_expression -> postfix_expression | INC_OP unary_expression | DEC_OP unary_expression | unary_operator cast_expression | SIZEOF unary_expression | SIZEOF OPARAN type_name CPARAN\n"
-"unary_operator -> AMPER | STAR | PLUS | MINUS | TILDE | EXCLAMATION\n"
-"cast_expression -> unary_expression | OPARAN type_name CPARAN cast_expression\n"
-"multiplicative_expression -> cast_expression | multiplicative_expression STAR cast_expression | multiplicative_expression SLASH cast_expression | multiplicative_expression PERCENT cast_expression\n"
-"additive_expression -> multiplicative_expression | additive_expression PLUS multiplicative_expression | additive_expression MINUS multiplicative_expression\n"
-"shift_expression -> additive_expression | shift_expression LEFT_OP additive_expression | shift_expression RIGHT_OP additive_expression\n"
-"relational_expression -> shift_expression | relational_expression RANGLE shift_expression | relational_expression LANGLE shift_expression | relational_expression LE_OP shift_expression | relational_expression GE_OP shift_expression\n"
-"equality_expression -> relational_expression | equality_expression EQ_OP relational_expression | equality_expression NE_OP relational_expression\n"
-"and_expression -> equality_expression | and_expression AMPER equality_expression\n"
-"exclusive_or_expression -> and_expression | exclusive_or_expression CARET and_expression\n"
-"inclusive_or_expression -> exclusive_or_expression | inclusive_or_expression PIPE exclusive_or_expression\n"
-"logical_and_expression -> inclusive_or_expression | logical_and_expression AND_OP inclusive_or_expression\n"
-"logical_or_expression -> logical_and_expression | logical_or_expression OR_OP logical_and_expression\n"
-"conditional_expression -> logical_or_expression | logical_or_expression QUESTION expression COLON conditional_expression\n"
-"assignment_expression -> conditional_expression | unary_expression assignment_operator assignment_expression\n"
-"assignment_operator -> EQUAL | MUL_ASSIGN | DIV_ASSIGN | MOD_ASSIGN | ADD_ASSIGN | SUB_ASSIGN | LEFT_ASSIGN | RIGHT_ASSIGN | AND_ASSIGN | XOR_ASSIGN | OR_ASSIGN\n"
-"expression -> assignment_expression | expression COMMA assignment_expression\n"
-"constant_expression -> conditional_expression\n"
-"declaration -> declaration_specifiers SEMICOL | declaration_specifiers init_declarator_list SEMICOL\n"
-"declaration_specifiers -> storage_class_specifier | storage_class_specifier declaration_specifiers | type_specifier | type_specifier declaration_specifiers | type_qualifier | type_qualifier declaration_specifiers | function_specifier | function_specifier declaration_specifiers\n"
-"init_declarator_list -> init_declarator | init_declarator_list COMMA init_declarator\n"
-"init_declarator -> declarator | declarator EQUAL initializer\n"
-"storage_class_specifier -> TYPEDEF | EXTERN | STATIC | AUTO | REGISTER\n"
-"type_specifier -> VOID | CHAR | SHORT | INT | LONG | FLOAT | DOUBLE | SIGNED | UNSIGNED | BOOL | COMPLEX | IMAGINARY | struct_or_union_specifier | enum_specifier | TYPE_NAME\n"
-"struct_or_union_specifier -> struct_or_union IDENTIFIER OCURLYBRACE struct_declaration_list CCURLYBRACE | struct_or_union OCURLYBRACE struct_declaration_list CCURLYBRACE | struct_or_union IDENTIFIER\n"
-"struct_or_union -> STRUCT | UNION\n"
-"struct_declaration_list -> struct_declaration | struct_declaration_list struct_declaration\n"
-"struct_declaration -> specifier_qualifier_list struct_declarator_list SEMICOL\n"
-"specifier_qualifier_list -> type_specifier specifier_qualifier_list | type_specifier | type_qualifier specifier_qualifier_list | type_qualifier\n"
-"struct_declarator_list -> struct_declarator | struct_declarator_list COMMA struct_declarator\n"
-"struct_declarator -> declarator | COLON constant_expression | declarator COLON constant_expression\n"
-"enum_specifier -> ENUM OCURLYBRACE enumerator_list CCURLYBRACE | ENUM IDENTIFIER OCURLYBRACE enumerator_list CCURLYBRACE | ENUM OCURLYBRACE enumerator_list COMMA CCURLYBRACE | ENUM IDENTIFIER OCURLYBRACE enumerator_list COMMA CCURLYBRACE | ENUM IDENTIFIER\n"
-"enumerator_list -> enumerator | enumerator_list COMMA enumerator\n"
-"enumerator -> IDENTIFIER | IDENTIFIER EQUAL constant_expression\n"
-"type_qualifier -> CONST | RESTRICT | VOLATILE\n"
-"function_specifier -> INLINE\n"
-"declarator -> pointer direct_declarator | direct_declarator\n"
-"direct_declarator -> IDENTIFIER | OPARAN declarator CPARAN | direct_declarator OSQUAREBRACE type_qualifier_list assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE type_qualifier_list CSQUAREBRACE | direct_declarator OSQUAREBRACE assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE STATIC type_qualifier_list assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE type_qualifier_list STATIC assignment_expression CSQUAREBRACE | direct_declarator OSQUAREBRACE type_qualifier_list STAR CSQUAREBRACE | direct_declarator OSQUAREBRACE STAR CSQUAREBRACE | direct_declarator OSQUAREBRACE CSQUAREBRACE | direct_declarator OPARAN parameter_type_list CPARAN | direct_declarator OPARAN identifier_list CPARAN | direct_declarator OPARAN CPARAN\n"
-"pointer -> STAR | STAR type_qualifier_list | STAR pointer | STAR type_qualifier_list pointer\n"
-"type_qualifier_list -> type_qualifier | type_qualifier_list type_qualifier\n"
-"parameter_type_list -> parameter_list | parameter_list COMMA ELLIPSIS\n"
-"parameter_list -> parameter_declaration | parameter_list COMMA parameter_declaration\n"
-"parameter_declaration -> declaration_specifiers declarator | declaration_specifiers abstract_declarator | declaration_specifiers\n"
-"identifier_list -> IDENTIFIER | identifier_list COMMA IDENTIFIER\n"
-"type_name -> specifier_qualifier_list | specifier_qualifier_list abstract_declarator\n"
-"abstract_declarator -> pointer | direct_abstract_declarator | pointer direct_abstract_declarator\n"
-"direct_abstract_declarator -> OPARAN abstract_declarator CPARAN | OSQUAREBRACE CSQUAREBRACE | OSQUAREBRACE assignment_expression CSQUAREBRACE | direct_abstract_declarator OSQUAREBRACE CSQUAREBRACE | direct_abstract_declarator OSQUAREBRACE assignment_expression CSQUAREBRACE | OSQUAREBRACE STAR CSQUAREBRACE | direct_abstract_declarator OSQUAREBRACE STAR CSQUAREBRACE | OPARAN CPARAN | OPARAN parameter_type_list CPARAN | direct_abstract_declarator OPARAN CPARAN | direct_abstract_declarator OPARAN parameter_type_list CPARAN\n"
-"initializer -> assignment_expression | OCURLYBRACE initializer_list CCURLYBRACE | OCURLYBRACE initializer_list COMMA CCURLYBRACE\n"
-"initializer_list -> initializer | designation initializer | initializer_list COMMA initializer | initializer_list COMMA designation initializer\n"
-"designation -> designator_list EQUAL\n"
-"designator_list -> designator | designator_list designator\n"
-"designator -> OSQUAREBRACE constant_expression CSQUAREBRACE | DOT IDENTIFIER\n"
-"statement -> labeled_statement | compound_statement | expression_statement | selection_statement | iteration_statement | jump_statement\n"
-"labeled_statement -> IDENTIFIER COLON statement | CASE constant_expression COLON statement | DEFAULT COLON statement\n"
-"compound_statement -> OCURLYBRACE CCURLYBRACE | OCURLYBRACE block_item_list CCURLYBRACE\n"
-"block_item_list -> block_item | block_item_list block_item\n"
-"block_item -> declaration | statement\n"
-"expression_statement -> SEMICOL | expression SEMICOL\n"
-"selection_statement -> IF OPARAN expression CPARAN statement | IF OPARAN expression CPARAN statement ELSE statement | SWITCH OPARAN expression CPARAN statement\n"
-"iteration_statement -> WHILE OPARAN expression CPARAN statement | DO statement WHILE OPARAN expression CPARAN SEMICOL | FOR OPARAN expression_statement expression_statement CPARAN statement | FOR OPARAN expression_statement expression_statement expression CPARAN statement | FOR OPARAN declaration expression_statement CPARAN statement | FOR OPARAN declaration expression_statement expression CPARAN statement\n"
-"jump_statement -> GOTO IDENTIFIER SEMICOL | CONTINUE SEMICOL | BREAK SEMICOL | RETURN SEMICOL | RETURN expression SEMICOL\n"
-"translation_unit -> external_declaration | translation_unit external_declaration\n"
-"external_declaration -> function_definition | declaration\n"
-"function_definition -> declaration_specifiers declarator declaration_list compound_statement | declaration_specifiers declarator compound_statement\n"
-"declaration_list -> declaration | declaration_list declaration\n";
-
-  Grammar *grammar = cparseGrammar(grammarString);
-  printf("%s\n", getGrammarAsString(grammar));
-
-  LR1Parser *parser = cparseCreateLALR1Parser(grammar, tokenKindStr);
-  printf("%s\n", getLR1ParserAsString(parser));
-
-  printf("%d\n", cparseAccept(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}"));
-
-  ParseTreeNode *node = cparse(parser, "int main(int argc, char *argv[]) {\nreturn 23;\n}");
-  printf("%s\n", getParseTreeAsString(node));
+static bool set_contains(const SymbolSet *set, const char *key,
+                         const char *value) {
+  const SymbolSetEntry *entry = symbol_set_find_const(set, key);
+  if (!entry) {
+    return false;
+  }
+  return string_vec_contains(&entry->values, value);
 }
 
-#endif
+static void test_first_follow(void) {
+  const char *src = "S -> A A\nA -> a A | b\nB -> epsilon";
+  Grammar *grammar = cparseGrammar(src);
+  EXPECT_TRUE(grammar != NULL, "cparseGrammar returned NULL");
+  EXPECT_STREQ(grammar->start, "S", "start symbol mismatch");
+  EXPECT_TRUE(string_vec_contains(&grammar->terminals, "a"),
+              "missing terminal a");
+  EXPECT_TRUE(string_vec_contains(&grammar->terminals, "b"),
+              "missing terminal b");
+  EXPECT_TRUE(set_contains(&grammar->first, "A", "a"), "FIRST(A) missing a");
+  EXPECT_TRUE(set_contains(&grammar->first, "A", "b"), "FIRST(A) missing b");
+  EXPECT_TRUE(set_contains(&grammar->follow, "A", "b"), "FOLLOW(A) missing b");
+  EXPECT_TRUE(set_contains(&grammar->follow, "A", "$"), "FOLLOW(A) missing $");
+  EXPECT_TRUE(set_contains(&grammar->first, "B", CPARSE_EPSILON),
+              "FIRST(B) missing epsilon");
+  cparseFreeGrammar(grammar);
+}
 
+static clexLexer *create_lexer(const TokenSpec *specs, size_t count) {
+  clexLexer *lexer = clexInit();
+  EXPECT_TRUE(lexer != NULL, "failed to initialise clex lexer");
+  if (!lexer) {
+    return NULL;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    if (!specs[i].pattern) {
+      continue;
+    }
+    bool ok = clexRegisterKind(lexer, specs[i].pattern, specs[i].kind);
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "failed to register token pattern %s",
+             specs[i].label);
+    EXPECT_TRUE(ok, buffer);
+    if (!ok) {
+      clexLexerDestroy(lexer);
+      return NULL;
+    }
+  }
+  return lexer;
+}
+
+static clexLexer *create_basic_lexer(void) {
+  static const TokenSpec specs[] = {
+      {"int", 0, "INT"},
+      {"return", 1, "RETURN"},
+      {"[a-zA-Z_]([a-zA-Z_]|[0-9])*", 2, "IDENTIFIER"},
+      {";", 3, "SEMICOL"},
+  };
+  return create_lexer(specs, sizeof(specs) / sizeof(specs[0]));
+}
+
+static void test_lr1_accept_and_tree(void) {
+  clexLexer *lexer = create_basic_lexer();
+  if (!lexer) {
+    return;
+  }
+  const char *grammar_src = "S -> A IDENTIFIER SEMICOL\nA -> RETURN";
+  Grammar *grammar = cparseGrammar(grammar_src);
+  EXPECT_TRUE(grammar != NULL, "failed to parse grammar");
+  if (!grammar) {
+    clexLexerDestroy(lexer);
+    return;
+  }
+  const char *token_names[] = {"INT", "RETURN", "IDENTIFIER", "SEMICOL"};
+  LR1Parser *parser = cparseCreateLR1Parser(grammar, lexer, token_names);
+  EXPECT_TRUE(parser != NULL, "failed to build LR(1) parser");
+  if (!parser) {
+    cparseFreeGrammar(grammar);
+    clexLexerDestroy(lexer);
+    return;
+  }
+  EXPECT_TRUE(cparseAccept(parser, "return foo;"),
+              "expected parser to accept valid input");
+  EXPECT_TRUE(!cparseAccept(parser, "return"), "parser accepted invalid input");
+  ParseTreeNode *tree = cparse(parser, "return foo;");
+  EXPECT_TRUE(tree != NULL, "parse tree is NULL");
+  if (tree) {
+    EXPECT_STREQ(tree->value, "S", "root value mismatch");
+    EXPECT_TRUE(tree->children.size == 3, "S should have three children");
+  }
+  cparseFreeParseTree(tree);
+  cparseFreeParser(parser);
+  cparseFreeGrammar(grammar);
+  clexLexerDestroy(lexer);
+}
+
+static void test_parse_tree_terminals(void) {
+  clexLexer *lexer = create_basic_lexer();
+  if (!lexer) {
+    return;
+  }
+  const char *grammar_src = "S -> A IDENTIFIER SEMICOL\nA -> RETURN";
+  Grammar *grammar = cparseGrammar(grammar_src);
+  if (!grammar) {
+    clexLexerDestroy(lexer);
+    return;
+  }
+  const char *token_names[] = {"INT", "RETURN", "IDENTIFIER", "SEMICOL"};
+  LR1Parser *parser = cparseCreateLR1Parser(grammar, lexer, token_names);
+  if (!parser) {
+    cparseFreeGrammar(grammar);
+    clexLexerDestroy(lexer);
+    return;
+  }
+  ParseTreeNode *tree = cparse(parser, "return result;");
+  EXPECT_TRUE(tree != NULL, "expected parse tree for valid input");
+  if (tree && tree->children.size == 3) {
+    ParseTreeNode *node_a = tree->children.items[0];
+    ParseTreeNode *ident = tree->children.items[1];
+    ParseTreeNode *semi = tree->children.items[2];
+    EXPECT_STREQ(node_a->value, "A", "first child should be nonterminal A");
+    EXPECT_TRUE(node_a->children.size == 1,
+                "A should expand to a single RETURN token");
+    if (node_a->children.size == 1) {
+      ParseTreeNode *return_tok = node_a->children.items[0];
+      EXPECT_STREQ(return_tok->value, "RETURN", "terminal mismatch for RETURN");
+      EXPECT_STREQ(return_tok->token.lexeme, "return",
+                   "RETURN lexeme mismatch");
+    }
+    EXPECT_STREQ(ident->value, "IDENTIFIER", "identifier node name mismatch");
+    EXPECT_STREQ(ident->token.lexeme, "result", "IDENTIFIER lexeme mismatch");
+    EXPECT_STREQ(semi->value, "SEMICOL", "semicolon node name mismatch");
+    EXPECT_STREQ(semi->token.lexeme, ";", "semicolon lexeme mismatch");
+  }
+  cparseFreeParseTree(tree);
+  cparseFreeParser(parser);
+  cparseFreeGrammar(grammar);
+  clexLexerDestroy(lexer);
+}
+
+static void test_lalr_accept(void) {
+  clexLexer *lexer = create_basic_lexer();
+  if (!lexer) {
+    return;
+  }
+  const char *grammar_src = "S -> A IDENTIFIER SEMICOL\nA -> RETURN";
+  Grammar *grammar = cparseGrammar(grammar_src);
+  EXPECT_TRUE(grammar != NULL, "failed to parse grammar for LALR test");
+  if (!grammar) {
+    clexLexerDestroy(lexer);
+    return;
+  }
+  const char *token_names[] = {"INT", "RETURN", "IDENTIFIER", "SEMICOL"};
+  LALR1Parser *parser = cparseCreateLALR1Parser(grammar, lexer, token_names);
+  EXPECT_TRUE(parser != NULL, "failed to build LALR(1) parser");
+  if (!parser) {
+    cparseFreeGrammar(grammar);
+    clexLexerDestroy(lexer);
+    return;
+  }
+  EXPECT_TRUE(cparseAccept(parser, "return bar;"),
+              "LALR parser rejected valid input");
+  cparseFreeParser(parser);
+  cparseFreeGrammar(grammar);
+  clexLexerDestroy(lexer);
+}
+
+static void test_parser_rejects_invalid_input(void) {
+  clexLexer *lexer = create_basic_lexer();
+  if (!lexer) {
+    return;
+  }
+  const char *grammar_src = "S -> A IDENTIFIER SEMICOL\nA -> RETURN";
+  Grammar *grammar = cparseGrammar(grammar_src);
+  if (!grammar) {
+    clexLexerDestroy(lexer);
+    return;
+  }
+  const char *token_names[] = {"INT", "RETURN", "IDENTIFIER", "SEMICOL"};
+  LR1Parser *parser = cparseCreateLR1Parser(grammar, lexer, token_names);
+  if (!parser) {
+    cparseFreeGrammar(grammar);
+    clexLexerDestroy(lexer);
+    return;
+  }
+  EXPECT_TRUE(!cparseAccept(parser, "return ;"),
+              "parser accepted malformed input");
+  ParseTreeNode *tree = cparse(parser, "return ;");
+  EXPECT_TRUE(tree == NULL, "cparse should return NULL for malformed input");
+  cparseFreeParseTree(tree);
+  cparseFreeParser(parser);
+  cparseFreeGrammar(grammar);
+  clexLexerDestroy(lexer);
+}
+
+static void test_epsilon_grammar(void) {
+  clexLexer *lexer = clexInit();
+  EXPECT_TRUE(lexer != NULL, "failed to allocate lexer for epsilon grammar");
+  const char *grammar_src = "S -> epsilon";
+  Grammar *grammar = cparseGrammar(grammar_src);
+  EXPECT_TRUE(grammar != NULL, "failed to build epsilon grammar");
+  if (!grammar) {
+    clexLexerDestroy(lexer);
+    return;
+  }
+  LR1Parser *parser = cparseCreateLR1Parser(grammar, lexer, NULL);
+  EXPECT_TRUE(parser != NULL, "failed to build parser for epsilon grammar");
+  if (!parser) {
+    cparseFreeGrammar(grammar);
+    clexLexerDestroy(lexer);
+    return;
+  }
+  EXPECT_TRUE(cparseAccept(parser, ""),
+              "epsilon grammar should accept empty string");
+  ParseTreeNode *tree = cparse(parser, "");
+  EXPECT_TRUE(tree != NULL, "parse tree should be produced for empty input");
+  if (tree) {
+    EXPECT_STREQ(tree->value, "S", "epsilon grammar root mismatch");
+    EXPECT_TRUE(tree->children.size == 0,
+                "epsilon grammar should have no children");
+  }
+  cparseFreeParseTree(tree);
+  cparseFreeParser(parser);
+  cparseFreeGrammar(grammar);
+  clexLexerDestroy(lexer);
+}
+
+static void test_expression_grammar(void) {
+  enum {
+    TOK_NUMBER,
+    TOK_PLUS,
+    TOK_STAR,
+    TOK_LPAREN,
+    TOK_RPAREN,
+  };
+  static const TokenSpec expr_specs[] = {
+      {"[0-9]+", TOK_NUMBER, "NUMBER"}, {"\\+", TOK_PLUS, "PLUS"},
+      {"\\*", TOK_STAR, "STAR"},        {"\\(", TOK_LPAREN, "LPAREN"},
+      {"\\)", TOK_RPAREN, "RPAREN"},
+  };
+  clexLexer *lexer =
+      create_lexer(expr_specs, sizeof(expr_specs) / sizeof(expr_specs[0]));
+  if (!lexer) {
+    return;
+  }
+  const char *grammar_src =
+      "Expr -> Term ExprTail\n"
+      "ExprTail -> PLUS Term ExprTail | epsilon\n"
+      "Term -> Factor TermTail\n"
+      "TermTail -> STAR Factor TermTail | epsilon\n"
+      "Factor -> NUMBER | LPAREN Expr RPAREN";
+  Grammar *grammar = cparseGrammar(grammar_src);
+  EXPECT_TRUE(grammar != NULL, "failed to parse expression grammar");
+  if (!grammar) {
+    clexLexerDestroy(lexer);
+    return;
+  }
+  const char *token_names[] = {"NUMBER", "PLUS", "STAR", "LPAREN", "RPAREN"};
+  LALR1Parser *parser = cparseCreateLALR1Parser(grammar, lexer, token_names);
+  EXPECT_TRUE(parser != NULL, "failed to build expression parser");
+  if (!parser) {
+    cparseFreeGrammar(grammar);
+    clexLexerDestroy(lexer);
+    return;
+  }
+  EXPECT_TRUE(cparseAccept(parser, "2 + 3 * 4"),
+              "expression parser rejected valid input");
+  EXPECT_TRUE(!cparseAccept(parser, "2 + * 3"),
+              "expression parser accepted invalid input");
+  ParseTreeNode *tree = cparse(parser, "8 + 5 * 2");
+  EXPECT_TRUE(tree != NULL, "expression parser failed to produce a tree");
+  if (tree) {
+    EXPECT_STREQ(tree->value, "Expr", "expression root mismatch");
+    char *dump = getParseTreeAsString(tree);
+    EXPECT_TRUE(dump != NULL, "failed to serialise expression parse tree");
+    free(dump);
+  }
+  cparseFreeParseTree(tree);
+  cparseFreeParser(parser);
+  cparseFreeGrammar(grammar);
+  clexLexerDestroy(lexer);
+}
+
+static void test_statement_grammar(void) {
+  enum {
+    TOK_RETURN,
+    TOK_IF,
+    TOK_WHILE,
+    TOK_IDENTIFIER,
+    TOK_NUMBER,
+    TOK_LBRACE,
+    TOK_RBRACE,
+    TOK_LPAREN,
+    TOK_RPAREN,
+    TOK_SEMICOL,
+    TOK_ASSIGN,
+    TOK_PLUS,
+    TOK_STAR,
+  };
+
+  static const TokenSpec stmt_specs[] = {
+      {"return", TOK_RETURN, "RETURN"},
+      {"if", TOK_IF, "IF"},
+      {"while", TOK_WHILE, "WHILE"},
+      {"[a-zA-Z_]([a-zA-Z_]|[0-9])*", TOK_IDENTIFIER, "IDENTIFIER"},
+      {"[0-9]+", TOK_NUMBER, "NUMBER"},
+      {"\\{", TOK_LBRACE, "LBRACE"},
+      {"\\}", TOK_RBRACE, "RBRACE"},
+      {"\\(", TOK_LPAREN, "LPAREN"},
+      {"\\)", TOK_RPAREN, "RPAREN"},
+      {";", TOK_SEMICOL, "SEMICOL"},
+      {"=", TOK_ASSIGN, "ASSIGN"},
+      {"\\+", TOK_PLUS, "PLUS"},
+      {"\\*", TOK_STAR, "STAR"},
+  };
+
+  clexLexer *lexer =
+      create_lexer(stmt_specs, sizeof(stmt_specs) / sizeof(stmt_specs[0]));
+  if (!lexer) {
+    return;
+  }
+
+  const char *grammar_src =
+      "Program -> Block\n"
+      "Block -> LBRACE StmtList RBRACE\n"
+      "StmtList -> Stmt StmtList | epsilon\n"
+      "Stmt -> RETURN Expr SEMICOL\n"
+      "Stmt -> IDENTIFIER ASSIGN Expr SEMICOL\n"
+      "Stmt -> IF LPAREN Expr RPAREN Stmt\n"
+      "Stmt -> WHILE LPAREN Expr RPAREN Stmt\n"
+      "Stmt -> Block\n"
+      "Expr -> Term ExprTail\n"
+      "ExprTail -> PLUS Term ExprTail | epsilon\n"
+      "Term -> Factor TermTail\n"
+      "TermTail -> STAR Factor TermTail | epsilon\n"
+      "Factor -> IDENTIFIER | NUMBER | LPAREN Expr RPAREN";
+
+  Grammar *grammar = cparseGrammar(grammar_src);
+  EXPECT_TRUE(grammar != NULL, "failed to parse statement grammar");
+  if (!grammar) {
+    clexLexerDestroy(lexer);
+    return;
+  }
+
+  const char *token_names[] = {
+      [TOK_RETURN] = "RETURN", [TOK_IF] = "IF",
+      [TOK_WHILE] = "WHILE",   [TOK_IDENTIFIER] = "IDENTIFIER",
+      [TOK_NUMBER] = "NUMBER", [TOK_LBRACE] = "LBRACE",
+      [TOK_RBRACE] = "RBRACE", [TOK_LPAREN] = "LPAREN",
+      [TOK_RPAREN] = "RPAREN", [TOK_SEMICOL] = "SEMICOL",
+      [TOK_ASSIGN] = "ASSIGN", [TOK_PLUS] = "PLUS",
+      [TOK_STAR] = "STAR",
+  };
+
+  LR1Parser *parser = cparseCreateLR1Parser(grammar, lexer, token_names);
+  EXPECT_TRUE(parser != NULL, "failed to build statement grammar parser");
+  if (!parser) {
+    cparseFreeGrammar(grammar);
+    clexLexerDestroy(lexer);
+    return;
+  }
+
+  const char *program = "{ a = b + 1 ; return 42 ; }";
+
+  int expected_tokens[] = {TOK_LBRACE,     TOK_IDENTIFIER, TOK_ASSIGN,
+                           TOK_IDENTIFIER, TOK_PLUS,       TOK_NUMBER,
+                           TOK_SEMICOL,    TOK_RETURN,     TOK_NUMBER,
+                           TOK_SEMICOL,    TOK_RBRACE,     -1};
+  clexReset(lexer, program);
+  for (size_t i = 0; expected_tokens[i] >= 0; ++i) {
+    clexToken tok = clex(lexer);
+    char message[128];
+    snprintf(message, sizeof(message), "unexpected token kind at position %zu",
+             i);
+    EXPECT_TRUE(tok.kind == expected_tokens[i], message);
+    free(tok.lexeme);
+    if (tok.kind != expected_tokens[i]) {
+      break;
+    }
+  }
+
+  clexReset(lexer, program);
+
+  EXPECT_TRUE(cparseAccept(parser, program),
+              "statement grammar rejected valid program");
+
+  const char *bad_program = "{ return 42 a = 1 ; }";
+  EXPECT_TRUE(!cparseAccept(parser, bad_program),
+              "statement grammar accepted invalid program");
+
+  ParseTreeNode *tree = cparse(parser, program);
+  EXPECT_TRUE(tree != NULL, "statement grammar failed to produce parse tree");
+  if (tree) {
+    EXPECT_STREQ(tree->value, "Program", "statement grammar root mismatch");
+    char *dump = getParseTreeAsString(tree);
+    EXPECT_TRUE(dump != NULL, "failed to serialise statement parse tree");
+    free(dump);
+  }
+  cparseFreeParseTree(tree);
+
+  cparseFreeParser(parser);
+  cparseFreeGrammar(grammar);
+  clexLexerDestroy(lexer);
+}
+
+int main(void) {
+  test_first_follow();
+  test_lr1_accept_and_tree();
+  test_parse_tree_terminals();
+  test_lalr_accept();
+  test_parser_rejects_invalid_input();
+  test_epsilon_grammar();
+  test_expression_grammar();
+  test_statement_grammar();
+
+  if (failures == 0) {
+    printf("All tests passed.\n");
+  }
+  return failures == 0 ? 0 : 1;
+}

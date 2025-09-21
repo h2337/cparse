@@ -2,3 +2,7 @@ a.out
 analysis.txt
 gmon.out
 valgrind-output
+libcparse.a
+*.o
+tests
+examples/expr_parser
