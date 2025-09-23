@@ -2,7 +2,7 @@
 
 # cparse
 
-`cparse` is an LR(1) and LALR(1) parser generator for C. It consumes a grammar written in an intuitive textual format and, together with the [`clex`](./clex) lexer generator, lets you build parsers that can both validate and produce parse trees for input programs.
+`cparse` is an LR(1) and LALR(1) parser generator for C. It consumes a grammar written in an intuitive textual format and, together with the [`clex`](https://github.com/h2337/clex) lexer generator, lets you build parsers that can both validate and produce parse trees for input programs.
 
 ## Highlights
 
