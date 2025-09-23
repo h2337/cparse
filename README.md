@@ -53,7 +53,7 @@ int main(void) {
       "A -> RETURN";
 
   Grammar *grammar = cparseGrammar(grammar_src);
-  LR1Parser *parser = cparseCreateLR1Parser(grammar, lexer, token_names);
+  LALR1Parser *parser = cparseCreateLALR1Parser(grammar, lexer, token_names);
 
   if (cparseAccept(parser, "return answer;")) {
     ParseTreeNode *root = cparse(parser, "return answer;");
