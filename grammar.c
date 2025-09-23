@@ -127,15 +127,29 @@ static bool compute_first_sets(Grammar *grammar) {
         const SymbolSetEntry *entry =
             symbol_set_find_const(&grammar->first, symbol);
         if (entry) {
+          StringVec first_values;
+          string_vec_init(&first_values);
           for (size_t j = 0; j < entry->values.size; ++j) {
-            const char *candidate = entry->values.items[j];
+            if (!string_vec_push_copy(&first_values, entry->values.items[j])) {
+              string_vec_free(&first_values, true);
+              return false;
+            }
+          }
+          bool contains_epsilon =
+              string_vec_contains(&first_values, CPARSE_EPSILON);
+
+          for (size_t j = 0; j < first_values.size; ++j) {
+            const char *candidate = first_values.items[j];
             if (strcmp(candidate, CPARSE_EPSILON) != 0) {
               if (!symbol_set_add(&grammar->first, left, candidate)) {
+                string_vec_free(&first_values, true);
                 return false;
               }
             }
           }
-          if (!string_vec_contains(&entry->values, CPARSE_EPSILON)) {
+          string_vec_free(&first_values, true);
+
+          if (!contains_epsilon) {
             derives_epsilon = false;
             break;
           }
@@ -209,15 +223,30 @@ static bool compute_follow_sets(Grammar *grammar) {
           const SymbolSetEntry *first_beta =
               symbol_set_find_const(&grammar->first, beta);
           if (first_beta) {
+            StringVec first_beta_values;
+            string_vec_init(&first_beta_values);
             for (size_t v = 0; v < first_beta->values.size; ++v) {
-              const char *candidate = first_beta->values.items[v];
+              if (!string_vec_push_copy(&first_beta_values,
+                                        first_beta->values.items[v])) {
+                string_vec_free(&first_beta_values, true);
+                return false;
+              }
+            }
+            bool beta_contains_epsilon =
+                string_vec_contains(&first_beta_values, CPARSE_EPSILON);
+
+            for (size_t v = 0; v < first_beta_values.size; ++v) {
+              const char *candidate = first_beta_values.items[v];
               if (strcmp(candidate, CPARSE_EPSILON) != 0) {
                 if (!symbol_set_add(&grammar->follow, symbol, candidate)) {
+                  string_vec_free(&first_beta_values, true);
                   return false;
                 }
               }
             }
-            if (!first_contains_epsilon(grammar, beta)) {
+            string_vec_free(&first_beta_values, true);
+
+            if (!beta_contains_epsilon) {
               epsilon_needed = false;
               break;
             }
@@ -230,12 +259,24 @@ static bool compute_follow_sets(Grammar *grammar) {
           const SymbolSetEntry *follow_left =
               symbol_set_find_const(&grammar->follow, rule->left);
           if (follow_left && follow_left->values.size > 0) {
+            StringVec follow_left_values;
+            string_vec_init(&follow_left_values);
             for (size_t v = 0; v < follow_left->values.size; ++v) {
-              if (!symbol_set_add(&grammar->follow, symbol,
-                                  follow_left->values.items[v])) {
+              if (!string_vec_push_copy(&follow_left_values,
+                                        follow_left->values.items[v])) {
+                string_vec_free(&follow_left_values, true);
                 return false;
               }
             }
+
+            for (size_t v = 0; v < follow_left_values.size; ++v) {
+              if (!symbol_set_add(&grammar->follow, symbol,
+                                  follow_left_values.items[v])) {
+                string_vec_free(&follow_left_values, true);
+                return false;
+              }
+            }
+            string_vec_free(&follow_left_values, true);
           }
         }
       }
