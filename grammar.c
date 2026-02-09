@@ -8,8 +8,8 @@
 
 #include "cparse.h"
 
-static Rule *rule_create(const char *left) {
-  Rule *rule = calloc(1, sizeof(*rule));
+static Rule* rule_create(const char* left) {
+  Rule* rule = calloc(1, sizeof(*rule));
   if (!rule) {
     return NULL;
   }
@@ -22,8 +22,8 @@ static Rule *rule_create(const char *left) {
   return rule;
 }
 
-static void rule_destroy(void *ptr) {
-  Rule *rule = ptr;
+static void rule_destroy(void* ptr) {
+  Rule* rule = ptr;
   if (!rule) {
     return;
   }
@@ -32,8 +32,8 @@ static void rule_destroy(void *ptr) {
   free(rule);
 }
 
-static Grammar *grammar_create(void) {
-  Grammar *grammar = calloc(1, sizeof(*grammar));
+static Grammar* grammar_create(void) {
+  Grammar* grammar = calloc(1, sizeof(*grammar));
   if (!grammar) {
     return NULL;
   }
@@ -45,7 +45,7 @@ static Grammar *grammar_create(void) {
   return grammar;
 }
 
-void cparseFreeGrammar(Grammar *grammar) {
+void cparseFreeGrammar(Grammar* grammar) {
   if (!grammar) {
     return;
   }
@@ -58,18 +58,18 @@ void cparseFreeGrammar(Grammar *grammar) {
   free(grammar);
 }
 
-static bool grammar_is_terminal(const Grammar *grammar, const char *symbol) {
+static bool grammar_is_terminal(const Grammar* grammar, const char* symbol) {
   if (!symbol || strcmp(symbol, CPARSE_EPSILON) == 0) {
     return false;
   }
   return string_vec_contains(&grammar->terminals, symbol);
 }
 
-static bool grammar_is_nonterminal(const Grammar *grammar, const char *symbol) {
+static bool grammar_is_nonterminal(const Grammar* grammar, const char* symbol) {
   return string_vec_contains(&grammar->nonterminals, symbol);
 }
 
-static size_t symbol_set_cardinality(const SymbolSet *set) {
+static size_t symbol_set_cardinality(const SymbolSet* set) {
   if (!set) {
     return 0;
   }
@@ -80,17 +80,17 @@ static size_t symbol_set_cardinality(const SymbolSet *set) {
   return count;
 }
 
-static bool compute_first_sets(Grammar *grammar) {
+static bool compute_first_sets(Grammar* grammar) {
   size_t previous_total = 0;
   bool first_iteration = true;
   do {
     previous_total = symbol_set_cardinality(&grammar->first);
     for (size_t r = 0; r < grammar->rules.size; ++r) {
-      Rule *rule = ptr_vec_get(&grammar->rules, r);
+      Rule* rule = ptr_vec_get(&grammar->rules, r);
       if (!rule) {
         continue;
       }
-      const char *left = rule->left;
+      const char* left = rule->left;
       bool derives_epsilon = true;
       if (rule->right.size == 0) {
         if (!symbol_set_add(&grammar->first, left, CPARSE_EPSILON)) {
@@ -99,7 +99,7 @@ static bool compute_first_sets(Grammar *grammar) {
         continue;
       }
       for (size_t i = 0; i < rule->right.size; ++i) {
-        const char *symbol = string_vec_get(&rule->right, i);
+        const char* symbol = string_vec_get(&rule->right, i);
         if (!symbol) {
           continue;
         }
@@ -124,7 +124,7 @@ static bool compute_first_sets(Grammar *grammar) {
           derives_epsilon = false;
           break;
         }
-        const SymbolSetEntry *entry =
+        const SymbolSetEntry* entry =
             symbol_set_find_const(&grammar->first, symbol);
         if (entry) {
           StringVec first_values;
@@ -139,7 +139,7 @@ static bool compute_first_sets(Grammar *grammar) {
               string_vec_contains(&first_values, CPARSE_EPSILON);
 
           for (size_t j = 0; j < first_values.size; ++j) {
-            const char *candidate = first_values.items[j];
+            const char* candidate = first_values.items[j];
             if (strcmp(candidate, CPARSE_EPSILON) != 0) {
               if (!symbol_set_add(&grammar->first, left, candidate)) {
                 string_vec_free(&first_values, true);
@@ -176,17 +176,9 @@ static bool compute_first_sets(Grammar *grammar) {
   return true;
 }
 
-static bool first_contains_epsilon(const Grammar *grammar, const char *symbol) {
-  const SymbolSetEntry *entry = symbol_set_find_const(&grammar->first, symbol);
-  if (!entry) {
-    return false;
-  }
-  return string_vec_contains(&entry->values, CPARSE_EPSILON);
-}
-
-static bool compute_follow_sets(Grammar *grammar) {
+static bool compute_follow_sets(Grammar* grammar) {
   for (size_t i = 0; i < grammar->nonterminals.size; ++i) {
-    const char *nonterminal = grammar->nonterminals.items[i];
+    const char* nonterminal = grammar->nonterminals.items[i];
     if (!symbol_set_get(&grammar->follow, nonterminal, true)) {
       return false;
     }
@@ -197,18 +189,18 @@ static bool compute_follow_sets(Grammar *grammar) {
   while (true) {
     size_t before = symbol_set_cardinality(&grammar->follow);
     for (size_t r = 0; r < grammar->rules.size; ++r) {
-      Rule *rule = ptr_vec_get(&grammar->rules, r);
+      Rule* rule = ptr_vec_get(&grammar->rules, r);
       if (!rule) {
         continue;
       }
       for (size_t i = 0; i < rule->right.size; ++i) {
-        const char *symbol = string_vec_get(&rule->right, i);
+        const char* symbol = string_vec_get(&rule->right, i);
         if (!grammar_is_nonterminal(grammar, symbol)) {
           continue;
         }
         bool epsilon_needed = true;
         for (size_t j = i + 1; j < rule->right.size; ++j) {
-          const char *beta = string_vec_get(&rule->right, j);
+          const char* beta = string_vec_get(&rule->right, j);
           if (strcmp(beta, CPARSE_EPSILON) == 0) {
             continue;
           }
@@ -220,7 +212,7 @@ static bool compute_follow_sets(Grammar *grammar) {
             epsilon_needed = false;
             break;
           }
-          const SymbolSetEntry *first_beta =
+          const SymbolSetEntry* first_beta =
               symbol_set_find_const(&grammar->first, beta);
           if (first_beta) {
             StringVec first_beta_values;
@@ -236,7 +228,7 @@ static bool compute_follow_sets(Grammar *grammar) {
                 string_vec_contains(&first_beta_values, CPARSE_EPSILON);
 
             for (size_t v = 0; v < first_beta_values.size; ++v) {
-              const char *candidate = first_beta_values.items[v];
+              const char* candidate = first_beta_values.items[v];
               if (strcmp(candidate, CPARSE_EPSILON) != 0) {
                 if (!symbol_set_add(&grammar->follow, symbol, candidate)) {
                   string_vec_free(&first_beta_values, true);
@@ -256,7 +248,7 @@ static bool compute_follow_sets(Grammar *grammar) {
           }
         }
         if (epsilon_needed) {
-          const SymbolSetEntry *follow_left =
+          const SymbolSetEntry* follow_left =
               symbol_set_find_const(&grammar->follow, rule->left);
           if (follow_left && follow_left->values.size > 0) {
             StringVec follow_left_values;
@@ -289,41 +281,41 @@ static bool compute_follow_sets(Grammar *grammar) {
   return true;
 }
 
-Grammar *cparseGrammar(const char *grammarString) {
+Grammar* cparseGrammar(const char* grammarString) {
   if (!grammarString) {
     return NULL;
   }
-  Grammar *grammar = grammar_create();
+  Grammar* grammar = grammar_create();
   if (!grammar) {
     return NULL;
   }
   StringVec rhs_symbols;
   string_vec_init(&rhs_symbols);
-  char *buffer = cparse_strdup(grammarString);
+  char* buffer = cparse_strdup(grammarString);
   if (!buffer) {
     cparseFreeGrammar(grammar);
     return NULL;
   }
-  char *line_cursor = buffer;
+  char* line_cursor = buffer;
   while (*line_cursor) {
-    char *line_start = line_cursor;
+    char* line_start = line_cursor;
     while (*line_cursor && *line_cursor != '\n') line_cursor++;
     if (*line_cursor == '\n') {
       *line_cursor = '\0';
       line_cursor++;
     }
-    char *trimmed = trim_whitespace(line_start);
+    char* trimmed = trim_whitespace(line_start);
     if (string_is_blank(trimmed) || trimmed[0] == '#') {
       continue;
     }
-    char *arrow = strstr(trimmed, "->");
+    char* arrow = strstr(trimmed, "->");
     if (!arrow) {
       fprintf(stderr, "Invalid production: %s\n", trimmed);
       continue;
     }
     *arrow = '\0';
-    char *left_raw = trim_whitespace(trimmed);
-    char *right_raw = trim_whitespace(arrow + 2);
+    char* left_raw = trim_whitespace(trimmed);
+    char* right_raw = trim_whitespace(arrow + 2);
     if (!left_raw || left_raw[0] == '\0') {
       fprintf(stderr, "Production with empty left-hand side ignored.\n");
       continue;
@@ -337,7 +329,7 @@ Grammar *cparseGrammar(const char *grammarString) {
         return NULL;
       }
     }
-    char *right_copy = cparse_strdup(right_raw);
+    char* right_copy = cparse_strdup(right_raw);
     if (!right_copy) {
       free(buffer);
       string_vec_free(&rhs_symbols, false);
@@ -354,13 +346,13 @@ Grammar *cparseGrammar(const char *grammarString) {
       }
     }
 
-    char *alt_cursor = right_copy;
+    char* alt_cursor = right_copy;
     while (*alt_cursor) {
-      char *alt_start = alt_cursor;
+      char* alt_start = alt_cursor;
       while (*alt_cursor && *alt_cursor != '|') alt_cursor++;
       char saved = *alt_cursor;
       *alt_cursor = '\0';
-      char *alt_trim = trim_whitespace(alt_start);
+      char* alt_trim = trim_whitespace(alt_start);
       if (string_is_blank(alt_trim)) {
         if (saved == '\0') {
           break;
@@ -369,7 +361,7 @@ Grammar *cparseGrammar(const char *grammarString) {
         alt_cursor++;
         continue;
       }
-      Rule *rule = rule_create(left_raw);
+      Rule* rule = rule_create(left_raw);
       if (!rule) {
         free(right_copy);
         free(buffer);
@@ -390,7 +382,7 @@ Grammar *cparseGrammar(const char *grammarString) {
         }
       } else {
         for (size_t i = 0; i < symbols.size; ++i) {
-          char *sym = symbols.items[i];
+          char* sym = symbols.items[i];
           if (!string_vec_push(&rule->right, sym)) {
             symbols.items[i] = NULL;
             string_vec_free(&symbols, true);
@@ -446,7 +438,7 @@ Grammar *cparseGrammar(const char *grammarString) {
     cparseFreeGrammar(grammar);
     return NULL;
   }
-  Rule *augmented = rule_create(CPARSE_START_SYMBOL);
+  Rule* augmented = rule_create(CPARSE_START_SYMBOL);
   if (!augmented) {
     string_vec_free(&rhs_symbols, false);
     cparseFreeGrammar(grammar);
@@ -488,7 +480,7 @@ Grammar *cparseGrammar(const char *grammarString) {
   grammar->rules = new_rules;
 
   for (size_t i = 0; i < rhs_symbols.size; ++i) {
-    const char *symbol = rhs_symbols.items[i];
+    const char* symbol = rhs_symbols.items[i];
     if (!string_vec_contains(&grammar->nonterminals, symbol)) {
       if (!string_vec_push_unique_copy(&grammar->terminals, symbol)) {
         cparseFreeGrammar(grammar);
@@ -510,12 +502,12 @@ Grammar *cparseGrammar(const char *grammarString) {
 }
 
 typedef struct {
-  char *data;
+  char* data;
   size_t size;
   size_t capacity;
 } StringBuilder;
 
-static bool sb_init(StringBuilder *sb, size_t initial_capacity) {
+static bool sb_init(StringBuilder* sb, size_t initial_capacity) {
   sb->data = malloc(initial_capacity);
   if (!sb->data) {
     sb->size = sb->capacity = 0;
@@ -527,7 +519,7 @@ static bool sb_init(StringBuilder *sb, size_t initial_capacity) {
   return true;
 }
 
-static bool sb_reserve(StringBuilder *sb, size_t additional) {
+static bool sb_reserve(StringBuilder* sb, size_t additional) {
   size_t required = sb->size + additional + 1;
   if (required <= sb->capacity) {
     return true;
@@ -536,7 +528,7 @@ static bool sb_reserve(StringBuilder *sb, size_t additional) {
   while (new_capacity < required) {
     new_capacity *= 2;
   }
-  char *new_data = realloc(sb->data, new_capacity);
+  char* new_data = realloc(sb->data, new_capacity);
   if (!new_data) {
     return false;
   }
@@ -545,7 +537,7 @@ static bool sb_reserve(StringBuilder *sb, size_t additional) {
   return true;
 }
 
-static bool sb_append(StringBuilder *sb, const char *text) {
+static bool sb_append(StringBuilder* sb, const char* text) {
   size_t len = strlen(text);
   if (!sb_reserve(sb, len)) {
     return false;
@@ -556,7 +548,7 @@ static bool sb_append(StringBuilder *sb, const char *text) {
   return true;
 }
 
-static bool sb_append_symbol_list(StringBuilder *sb, const StringVec *symbols) {
+static bool sb_append_symbol_list(StringBuilder* sb, const StringVec* symbols) {
   for (size_t i = 0; i < symbols->size; ++i) {
     if (!sb_append(sb, i == 0 ? "" : " ")) {
       return false;
@@ -568,7 +560,7 @@ static bool sb_append_symbol_list(StringBuilder *sb, const StringVec *symbols) {
   return true;
 }
 
-char *getGrammarAsString(Grammar *grammar) {
+char* getGrammarAsString(Grammar* grammar) {
   if (!grammar) {
     return NULL;
   }
@@ -600,7 +592,7 @@ char *getGrammarAsString(Grammar *grammar) {
   }
   sb_append(&sb, "\nRules:");
   for (size_t i = 0; i < grammar->rules.size; ++i) {
-    Rule *rule = grammar->rules.items[i];
+    Rule* rule = grammar->rules.items[i];
     sb_append(&sb, i == 0 ? " " : " && ");
     sb_append(&sb, rule->left);
     sb_append(&sb, " ->");
@@ -613,7 +605,7 @@ char *getGrammarAsString(Grammar *grammar) {
   }
   sb_append(&sb, "\nFirst set:");
   for (size_t i = 0; i < grammar->first.size; ++i) {
-    const SymbolSetEntry *entry = &grammar->first.entries[i];
+    const SymbolSetEntry* entry = &grammar->first.entries[i];
     sb_append(&sb, " ");
     sb_append(&sb, entry->key);
     sb_append(&sb, ": [");
@@ -627,7 +619,7 @@ char *getGrammarAsString(Grammar *grammar) {
   }
   sb_append(&sb, "\nFollow set:");
   for (size_t i = 0; i < grammar->follow.size; ++i) {
-    const SymbolSetEntry *entry = &grammar->follow.entries[i];
+    const SymbolSetEntry* entry = &grammar->follow.entries[i];
     sb_append(&sb, " ");
     sb_append(&sb, entry->key);
     sb_append(&sb, ": [");

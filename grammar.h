@@ -3,6 +3,6 @@
 
 #include "cparse.h"
 
-char *getGrammarAsString(Grammar *grammar);
+char* getGrammarAsString(Grammar* grammar);
 
 #endif

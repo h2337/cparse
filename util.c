@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static bool string_vec_grow(StringVec *vec, size_t min_capacity) {
+static bool string_vec_grow(StringVec* vec, size_t min_capacity) {
   if (vec->capacity >= min_capacity) {
     return true;
   }
@@ -19,7 +19,7 @@ static bool string_vec_grow(StringVec *vec, size_t min_capacity) {
     }
     new_capacity *= 2;
   }
-  char **new_items = realloc(vec->items, new_capacity * sizeof(char *));
+  char** new_items = realloc(vec->items, new_capacity * sizeof(char*));
   if (!new_items) {
     return false;
   }
@@ -28,17 +28,17 @@ static bool string_vec_grow(StringVec *vec, size_t min_capacity) {
   return true;
 }
 
-void string_vec_init(StringVec *vec) {
+void string_vec_init(StringVec* vec) {
   vec->size = 0;
   vec->capacity = 0;
   vec->items = NULL;
 }
 
-bool string_vec_reserve(StringVec *vec, size_t capacity) {
+bool string_vec_reserve(StringVec* vec, size_t capacity) {
   return string_vec_grow(vec, capacity);
 }
 
-bool string_vec_push(StringVec *vec, char *value) {
+bool string_vec_push(StringVec* vec, char* value) {
   if (!string_vec_grow(vec, vec->size + 1)) {
     return false;
   }
@@ -46,8 +46,8 @@ bool string_vec_push(StringVec *vec, char *value) {
   return true;
 }
 
-bool string_vec_push_copy(StringVec *vec, const char *value) {
-  char *copy = cparse_strdup(value);
+bool string_vec_push_copy(StringVec* vec, const char* value) {
+  char* copy = cparse_strdup(value);
   if (!copy) {
     return false;
   }
@@ -58,7 +58,7 @@ bool string_vec_push_copy(StringVec *vec, const char *value) {
   return true;
 }
 
-bool string_vec_contains(const StringVec *vec, const char *value) {
+bool string_vec_contains(const StringVec* vec, const char* value) {
   if (!vec || !value) {
     return false;
   }
@@ -70,21 +70,21 @@ bool string_vec_contains(const StringVec *vec, const char *value) {
   return false;
 }
 
-bool string_vec_push_unique(StringVec *vec, char *value) {
+bool string_vec_push_unique(StringVec* vec, char* value) {
   if (string_vec_contains(vec, value)) {
     return true;
   }
   return string_vec_push(vec, value);
 }
 
-bool string_vec_push_unique_copy(StringVec *vec, const char *value) {
+bool string_vec_push_unique_copy(StringVec* vec, const char* value) {
   if (string_vec_contains(vec, value)) {
     return true;
   }
   return string_vec_push_copy(vec, value);
 }
 
-bool string_vec_extend(StringVec *dest, const StringVec *src) {
+bool string_vec_extend(StringVec* dest, const StringVec* src) {
   if (!src) {
     return true;
   }
@@ -97,7 +97,7 @@ bool string_vec_extend(StringVec *dest, const StringVec *src) {
   return true;
 }
 
-bool string_vec_extend_unique(StringVec *dest, const StringVec *src) {
+bool string_vec_extend_unique(StringVec* dest, const StringVec* src) {
   if (!src) {
     return true;
   }
@@ -109,7 +109,7 @@ bool string_vec_extend_unique(StringVec *dest, const StringVec *src) {
   return true;
 }
 
-bool string_vec_remove(StringVec *vec, const char *value) {
+bool string_vec_remove(StringVec* vec, const char* value) {
   if (!vec || !value) {
     return false;
   }
@@ -117,7 +117,7 @@ bool string_vec_remove(StringVec *vec, const char *value) {
     if (strcmp(vec->items[i], value) == 0) {
       // Preserve order because consumers rely on deterministic iteration.
       memmove(&vec->items[i], &vec->items[i + 1],
-              (vec->size - i - 1) * sizeof(char *));
+              (vec->size - i - 1) * sizeof(char*));
       vec->size--;
       return true;
     }
@@ -125,21 +125,21 @@ bool string_vec_remove(StringVec *vec, const char *value) {
   return false;
 }
 
-char *string_vec_get(const StringVec *vec, size_t index) {
+char* string_vec_get(const StringVec* vec, size_t index) {
   if (!vec || index >= vec->size) {
     return NULL;
   }
   return vec->items[index];
 }
 
-char *string_vec_back(const StringVec *vec) {
+char* string_vec_back(const StringVec* vec) {
   if (!vec || vec->size == 0) {
     return NULL;
   }
   return vec->items[vec->size - 1];
 }
 
-StringVec string_vec_clone(const StringVec *src) {
+StringVec string_vec_clone(const StringVec* src) {
   StringVec result;
   string_vec_init(&result);
   if (!src || src->size == 0) {
@@ -155,7 +155,7 @@ StringVec string_vec_clone(const StringVec *src) {
   return result;
 }
 
-void string_vec_clear(StringVec *vec, bool free_items) {
+void string_vec_clear(StringVec* vec, bool free_items) {
   if (!vec) {
     return;
   }
@@ -167,7 +167,7 @@ void string_vec_clear(StringVec *vec, bool free_items) {
   vec->size = 0;
 }
 
-void string_vec_free(StringVec *vec, bool free_items) {
+void string_vec_free(StringVec* vec, bool free_items) {
   if (!vec) {
     return;
   }
@@ -177,7 +177,7 @@ void string_vec_free(StringVec *vec, bool free_items) {
   vec->capacity = 0;
 }
 
-static bool ptr_vec_grow(PtrVec *vec, size_t min_capacity) {
+static bool ptr_vec_grow(PtrVec* vec, size_t min_capacity) {
   if (vec->capacity >= min_capacity) {
     return true;
   }
@@ -189,7 +189,7 @@ static bool ptr_vec_grow(PtrVec *vec, size_t min_capacity) {
     }
     new_capacity *= 2;
   }
-  void **items = realloc(vec->items, new_capacity * sizeof(void *));
+  void** items = realloc(vec->items, new_capacity * sizeof(void*));
   if (!items) {
     return false;
   }
@@ -198,17 +198,17 @@ static bool ptr_vec_grow(PtrVec *vec, size_t min_capacity) {
   return true;
 }
 
-void ptr_vec_init(PtrVec *vec) {
+void ptr_vec_init(PtrVec* vec) {
   vec->size = 0;
   vec->capacity = 0;
   vec->items = NULL;
 }
 
-bool ptr_vec_reserve(PtrVec *vec, size_t capacity) {
+bool ptr_vec_reserve(PtrVec* vec, size_t capacity) {
   return ptr_vec_grow(vec, capacity);
 }
 
-bool ptr_vec_push(PtrVec *vec, void *value) {
+bool ptr_vec_push(PtrVec* vec, void* value) {
   if (!ptr_vec_grow(vec, vec->size + 1)) {
     return false;
   }
@@ -216,14 +216,14 @@ bool ptr_vec_push(PtrVec *vec, void *value) {
   return true;
 }
 
-void *ptr_vec_get(const PtrVec *vec, size_t index) {
+void* ptr_vec_get(const PtrVec* vec, size_t index) {
   if (!vec || index >= vec->size) {
     return NULL;
   }
   return vec->items[index];
 }
 
-void ptr_vec_remove_swap(PtrVec *vec, size_t index) {
+void ptr_vec_remove_swap(PtrVec* vec, size_t index) {
   if (!vec || index >= vec->size) {
     return;
   }
@@ -231,7 +231,7 @@ void ptr_vec_remove_swap(PtrVec *vec, size_t index) {
   vec->size--;
 }
 
-void ptr_vec_clear(PtrVec *vec, bool free_items, void (*free_fn)(void *)) {
+void ptr_vec_clear(PtrVec* vec, bool free_items, void (*free_fn)(void*)) {
   if (!vec) {
     return;
   }
@@ -247,7 +247,7 @@ void ptr_vec_clear(PtrVec *vec, bool free_items, void (*free_fn)(void *)) {
   vec->size = 0;
 }
 
-void ptr_vec_free(PtrVec *vec, bool free_items, void (*free_fn)(void *)) {
+void ptr_vec_free(PtrVec* vec, bool free_items, void (*free_fn)(void*)) {
   if (!vec) {
     return;
   }
@@ -257,7 +257,7 @@ void ptr_vec_free(PtrVec *vec, bool free_items, void (*free_fn)(void *)) {
   vec->capacity = 0;
 }
 
-static bool symbol_set_grow(SymbolSet *set, size_t min_capacity) {
+static bool symbol_set_grow(SymbolSet* set, size_t min_capacity) {
   if (set->capacity >= min_capacity) {
     return true;
   }
@@ -269,7 +269,7 @@ static bool symbol_set_grow(SymbolSet *set, size_t min_capacity) {
     }
     new_capacity *= 2;
   }
-  SymbolSetEntry *entries =
+  SymbolSetEntry* entries =
       realloc(set->entries, new_capacity * sizeof(SymbolSetEntry));
   if (!entries) {
     return false;
@@ -279,13 +279,13 @@ static bool symbol_set_grow(SymbolSet *set, size_t min_capacity) {
   return true;
 }
 
-void symbol_set_init(SymbolSet *set) {
+void symbol_set_init(SymbolSet* set) {
   set->entries = NULL;
   set->size = 0;
   set->capacity = 0;
 }
 
-SymbolSetEntry *symbol_set_get(SymbolSet *set, const char *key, bool create) {
+SymbolSetEntry* symbol_set_get(SymbolSet* set, const char* key, bool create) {
   if (!set || !key) {
     return NULL;
   }
@@ -300,7 +300,7 @@ SymbolSetEntry *symbol_set_get(SymbolSet *set, const char *key, bool create) {
   if (!symbol_set_grow(set, set->size + 1)) {
     return NULL;
   }
-  SymbolSetEntry *entry = &set->entries[set->size++];
+  SymbolSetEntry* entry = &set->entries[set->size++];
   entry->key = cparse_strdup(key);
   if (!entry->key) {
     set->size--;
@@ -310,8 +310,8 @@ SymbolSetEntry *symbol_set_get(SymbolSet *set, const char *key, bool create) {
   return entry;
 }
 
-const SymbolSetEntry *symbol_set_find_const(const SymbolSet *set,
-                                            const char *key) {
+const SymbolSetEntry* symbol_set_find_const(const SymbolSet* set,
+                                            const char* key) {
   if (!set || !key) {
     return NULL;
   }
@@ -323,20 +323,20 @@ const SymbolSetEntry *symbol_set_find_const(const SymbolSet *set,
   return NULL;
 }
 
-bool symbol_set_add(SymbolSet *set, const char *key, const char *value) {
-  SymbolSetEntry *entry = symbol_set_get(set, key, true);
+bool symbol_set_add(SymbolSet* set, const char* key, const char* value) {
+  SymbolSetEntry* entry = symbol_set_get(set, key, true);
   if (!entry) {
     return false;
   }
   return string_vec_push_unique_copy(&entry->values, value);
 }
 
-bool symbol_set_add_vec(SymbolSet *set, const char *key,
-                        const StringVec *values) {
+bool symbol_set_add_vec(SymbolSet* set, const char* key,
+                        const StringVec* values) {
   if (!values) {
     return true;
   }
-  SymbolSetEntry *entry = symbol_set_get(set, key, true);
+  SymbolSetEntry* entry = symbol_set_get(set, key, true);
   if (!entry) {
     return false;
   }
@@ -348,16 +348,16 @@ bool symbol_set_add_vec(SymbolSet *set, const char *key,
   return true;
 }
 
-bool symbol_set_contains(const SymbolSet *set, const char *key,
-                         const char *value) {
-  const SymbolSetEntry *entry = symbol_set_find_const(set, key);
+bool symbol_set_contains(const SymbolSet* set, const char* key,
+                         const char* value) {
+  const SymbolSetEntry* entry = symbol_set_find_const(set, key);
   if (!entry) {
     return false;
   }
   return string_vec_contains(&entry->values, value);
 }
 
-void symbol_set_clear(SymbolSet *set) {
+void symbol_set_clear(SymbolSet* set) {
   if (!set) {
     return;
   }
@@ -368,7 +368,7 @@ void symbol_set_clear(SymbolSet *set) {
   set->size = 0;
 }
 
-void symbol_set_free(SymbolSet *set) {
+void symbol_set_free(SymbolSet* set) {
   if (!set) {
     return;
   }
@@ -378,12 +378,12 @@ void symbol_set_free(SymbolSet *set) {
   set->capacity = 0;
 }
 
-char *cparse_strdup(const char *input) {
+char* cparse_strdup(const char* input) {
   if (!input) {
     return NULL;
   }
   size_t length = strlen(input);
-  char *copy = malloc(length + 1);
+  char* copy = malloc(length + 1);
   if (!copy) {
     return NULL;
   }
@@ -391,7 +391,7 @@ char *cparse_strdup(const char *input) {
   return copy;
 }
 
-char *trim_whitespace(char *str) {
+char* trim_whitespace(char* str) {
   if (!str) {
     return NULL;
   }
@@ -401,7 +401,7 @@ char *trim_whitespace(char *str) {
   if (*str == '\0') {
     return str;
   }
-  char *end = str + strlen(str) - 1;
+  char* end = str + strlen(str) - 1;
   while (end > str && isspace((unsigned char)*end)) {
     --end;
   }
@@ -409,7 +409,7 @@ char *trim_whitespace(char *str) {
   return str;
 }
 
-bool string_is_blank(const char *str) {
+bool string_is_blank(const char* str) {
   if (!str) {
     return true;
   }
@@ -422,13 +422,13 @@ bool string_is_blank(const char *str) {
   return true;
 }
 
-StringVec split_whitespace(const char *str) {
+StringVec split_whitespace(const char* str) {
   StringVec vec;
   string_vec_init(&vec);
   if (!str) {
     return vec;
   }
-  const char *cursor = str;
+  const char* cursor = str;
   while (*cursor) {
     while (*cursor && isspace((unsigned char)*cursor)) {
       ++cursor;
@@ -436,12 +436,12 @@ StringVec split_whitespace(const char *str) {
     if (!*cursor) {
       break;
     }
-    const char *start = cursor;
+    const char* start = cursor;
     while (*cursor && !isspace((unsigned char)*cursor)) {
       ++cursor;
     }
     size_t len = (size_t)(cursor - start);
-    char *token = malloc(len + 1);
+    char* token = malloc(len + 1);
     if (!token) {
       string_vec_free(&vec, true);
       string_vec_init(&vec);

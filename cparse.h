@@ -11,7 +11,7 @@
 #define CPARSE_START_SYMBOL "cparseStart"
 
 typedef struct Rule {
-  char *left;
+  char* left;
   StringVec right;
 } Rule;
 
@@ -19,13 +19,13 @@ typedef struct Grammar {
   PtrVec rules; /* Rule* */
   StringVec terminals;
   StringVec nonterminals;
-  char *start; /* user provided start symbol */
+  char* start; /* user provided start symbol */
   SymbolSet first;
   SymbolSet follow;
 } Grammar;
 
 typedef struct LR1Item {
-  Rule *rule;
+  Rule* rule;
   size_t dot;
   StringVec lookahead; /* char* entries reference grammar symbols */
 } LR1Item;
@@ -33,8 +33,8 @@ typedef struct LR1Item {
 typedef struct LR1State LR1State;
 
 typedef struct LR1Transition {
-  const char *symbol;
-  LR1State *state;
+  const char* symbol;
+  LR1State* state;
 } LR1Transition;
 
 struct LR1State {
@@ -43,7 +43,7 @@ struct LR1State {
 };
 
 typedef struct GoToNode {
-  const char *symbol;
+  const char* symbol;
   size_t state;
 } GoToNode;
 
@@ -59,17 +59,18 @@ typedef struct Action {
 } Action;
 
 typedef struct ActionEntry {
-  const char *terminal;
+  const char* terminal;
   Action action;
 } ActionEntry;
 
 typedef struct LR1Parser {
-  Grammar *grammar;
-  clexLexer *lexer;    /* not owned */
+  Grammar* grammar;
+  clexLexer* lexer;    /* not owned */
   PtrVec collection;   /* LR1State* */
   PtrVec goto_table;   /* PtrVec* where PtrVec holds GoToNode* */
   PtrVec action_table; /* PtrVec* where PtrVec holds ActionEntry* */
-  const char *const *tokenKindStr;
+  const char* const* tokenKindStr;
+  size_t tokenKindCount;
 } LR1Parser;
 
 typedef LR1Parser LALR1Parser;
@@ -77,20 +78,22 @@ typedef LR1Parser LALR1Parser;
 typedef struct ParseTreeNode ParseTreeNode;
 
 typedef struct ParseTreeNode {
-  char *value;
+  char* value;
   clexToken token;
   PtrVec children; /* ParseTreeNode* */
 } ParseTreeNode;
 
-Grammar *cparseGrammar(const char *grammarString);
-LR1Parser *cparseCreateLR1Parser(Grammar *grammar, clexLexer *lexer,
-                                 const char *const *tokenKindStr);
-LALR1Parser *cparseCreateLALR1Parser(Grammar *grammar, clexLexer *lexer,
-                                     const char *const *tokenKindStr);
-bool cparseAccept(LR1Parser *parser, const char *input);
-ParseTreeNode *cparse(LR1Parser *parser, const char *input);
-void cparseFreeParseTree(ParseTreeNode *node);
-void cparseFreeParser(LR1Parser *parser);
-void cparseFreeGrammar(Grammar *grammar);
+Grammar* cparseGrammar(const char* grammarString);
+LR1Parser* cparseCreateLR1Parser(Grammar* grammar, clexLexer* lexer,
+                                 const char* const* tokenKindStr,
+                                 size_t tokenKindCount);
+LALR1Parser* cparseCreateLALR1Parser(Grammar* grammar, clexLexer* lexer,
+                                     const char* const* tokenKindStr,
+                                     size_t tokenKindCount);
+bool cparseAccept(LR1Parser* parser, const char* input);
+ParseTreeNode* cparse(LR1Parser* parser, const char* input);
+void cparseFreeParseTree(ParseTreeNode* node);
+void cparseFreeParser(LR1Parser* parser);
+void cparseFreeGrammar(Grammar* grammar);
 
 #endif

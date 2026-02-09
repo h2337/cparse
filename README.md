@@ -53,7 +53,9 @@ int main(void) {
       "A -> RETURN";
 
   Grammar *grammar = cparseGrammar(grammar_src);
-  LALR1Parser *parser = cparseCreateLALR1Parser(grammar, lexer, token_names);
+  LALR1Parser *parser =
+      cparseCreateLALR1Parser(grammar, lexer, token_names,
+                              sizeof(token_names) / sizeof(token_names[0]));
 
   if (cparseAccept(parser, "return answer;")) {
     ParseTreeNode *root = cparse(parser, "return answer;");
@@ -73,8 +75,8 @@ int main(void) {
 | Function | Description |
 |----------|-------------|
 | `Grammar *cparseGrammar(const char *grammar_source)` | Parse a grammar description into an internal representation. |
-| `LR1Parser *cparseCreateLR1Parser(Grammar *, clexLexer *, const char *const *token_names)` | Build an LR(1) parser (the lexer remains owned by the caller). |
-| `LALR1Parser *cparseCreateLALR1Parser(Grammar *, clexLexer *, const char *const *token_names)` | Build an LALR(1) parser by merging LR(1) states (caller retains lexer ownership). |
+| `LR1Parser *cparseCreateLR1Parser(Grammar *, clexLexer *, const char *const *token_names, size_t token_name_count)` | Build an LR(1) parser (the lexer remains owned by the caller). |
+| `LALR1Parser *cparseCreateLALR1Parser(Grammar *, clexLexer *, const char *const *token_names, size_t token_name_count)` | Build an LALR(1) parser by merging LR(1) states (caller retains lexer ownership). |
 | `bool cparseAccept(LR1Parser *, const char *input)` | Check whether the input belongs to the grammar. |
 | `ParseTreeNode *cparse(LR1Parser *, const char *input)` | Parse input and return the parse tree (or `NULL` on failure). |
 | `void cparseFreeParseTree(ParseTreeNode *)` | Recursively release a parse tree allocated by `cparse`. |

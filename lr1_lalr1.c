@@ -9,9 +9,9 @@
 #include "clex/clex.h"
 #include "cparse.h"
 
-static const char *kEndMarker = "$";
+static const char* kEndMarker = "$";
 
-static void free_token(clexToken *token) {
+static void free_token(clexToken* token) {
   if (!token) {
     return;
   }
@@ -19,7 +19,7 @@ static void free_token(clexToken *token) {
   token->lexeme = NULL;
 }
 
-static bool grammar_is_terminal(const Grammar *grammar, const char *symbol) {
+static bool grammar_is_terminal(const Grammar* grammar, const char* symbol) {
   if (!symbol || strcmp(symbol, CPARSE_EPSILON) == 0) {
     return false;
   }
@@ -27,21 +27,21 @@ static bool grammar_is_terminal(const Grammar *grammar, const char *symbol) {
          !string_vec_contains(&grammar->nonterminals, symbol);
 }
 
-static bool grammar_is_nonterminal(const Grammar *grammar, const char *symbol) {
+static bool grammar_is_nonterminal(const Grammar* grammar, const char* symbol) {
   return string_vec_contains(&grammar->nonterminals, symbol);
 }
 
-static bool rule_is_epsilon(const Rule *rule) {
+static bool rule_is_epsilon(const Rule* rule) {
   return rule->right.size == 1 &&
          strcmp(rule->right.items[0], CPARSE_EPSILON) == 0;
 }
 
-static size_t rule_symbol_count(const Rule *rule) {
+static size_t rule_symbol_count(const Rule* rule) {
   return rule_is_epsilon(rule) ? 0 : rule->right.size;
 }
 
-static LR1Item *lr1_item_create(Rule *rule, size_t dot) {
-  LR1Item *item = calloc(1, sizeof(*item));
+static LR1Item* lr1_item_create(Rule* rule, size_t dot) {
+  LR1Item* item = calloc(1, sizeof(*item));
   if (!item) {
     return NULL;
   }
@@ -51,8 +51,8 @@ static LR1Item *lr1_item_create(Rule *rule, size_t dot) {
   return item;
 }
 
-static void lr1_item_destroy(void *ptr) {
-  LR1Item *item = ptr;
+static void lr1_item_destroy(void* ptr) {
+  LR1Item* item = ptr;
   if (!item) {
     return;
   }
@@ -60,10 +60,10 @@ static void lr1_item_destroy(void *ptr) {
   free(item);
 }
 
-static bool lr1_item_add_lookahead(LR1Item *item, const char *terminal,
-                                   bool *added) {
+static bool lr1_item_add_lookahead(LR1Item* item, const char* terminal,
+                                   bool* added) {
   size_t before = item->lookahead.size;
-  if (!string_vec_push_unique(&item->lookahead, (char *)terminal)) {
+  if (!string_vec_push_unique(&item->lookahead, (char*)terminal)) {
     return false;
   }
   if (added && item->lookahead.size != before) {
@@ -72,11 +72,11 @@ static bool lr1_item_add_lookahead(LR1Item *item, const char *terminal,
   return true;
 }
 
-static bool lr1_items_same_core(const LR1Item *a, const LR1Item *b) {
+static bool lr1_items_same_core(const LR1Item* a, const LR1Item* b) {
   return a->rule == b->rule && a->dot == b->dot;
 }
 
-static bool lr1_items_equal(const LR1Item *a, const LR1Item *b) {
+static bool lr1_items_equal(const LR1Item* a, const LR1Item* b) {
   if (!lr1_items_same_core(a, b)) {
     return false;
   }
@@ -91,8 +91,8 @@ static bool lr1_items_equal(const LR1Item *a, const LR1Item *b) {
   return true;
 }
 
-static LR1State *lr1_state_create(void) {
-  LR1State *state = calloc(1, sizeof(*state));
+static LR1State* lr1_state_create(void) {
+  LR1State* state = calloc(1, sizeof(*state));
   if (!state) {
     return NULL;
   }
@@ -101,10 +101,10 @@ static LR1State *lr1_state_create(void) {
   return state;
 }
 
-static void lr1_transition_destroy(void *ptr);
+static void lr1_transition_destroy(void* ptr);
 
-static void lr1_state_destroy(void *ptr) {
-  LR1State *state = ptr;
+static void lr1_state_destroy(void* ptr) {
+  LR1State* state = ptr;
   if (!state) {
     return;
   }
@@ -113,14 +113,14 @@ static void lr1_state_destroy(void *ptr) {
   free(state);
 }
 
-static bool lr1_state_add_item(LR1State *state, LR1Item *item) {
+static bool lr1_state_add_item(LR1State* state, LR1Item* item) {
   return ptr_vec_push(&state->items, item);
 }
 
-static LR1Item *lr1_state_find_item(const LR1State *state, const Rule *rule,
+static LR1Item* lr1_state_find_item(const LR1State* state, const Rule* rule,
                                     size_t dot) {
   for (size_t i = 0; i < state->items.size; ++i) {
-    LR1Item *candidate = state->items.items[i];
+    LR1Item* candidate = state->items.items[i];
     if (candidate->rule == rule && candidate->dot == dot) {
       return candidate;
     }
@@ -128,15 +128,15 @@ static LR1Item *lr1_state_find_item(const LR1State *state, const Rule *rule,
   return NULL;
 }
 
-static bool lr1_states_same_core(const LR1State *a, const LR1State *b) {
+static bool lr1_states_same_core(const LR1State* a, const LR1State* b) {
   if (a->items.size != b->items.size) {
     return false;
   }
   for (size_t i = 0; i < a->items.size; ++i) {
-    LR1Item *item_a = a->items.items[i];
+    LR1Item* item_a = a->items.items[i];
     bool found = false;
     for (size_t j = 0; j < b->items.size; ++j) {
-      LR1Item *item_b = b->items.items[j];
+      LR1Item* item_b = b->items.items[j];
       if (lr1_items_same_core(item_a, item_b)) {
         found = true;
         break;
@@ -149,15 +149,15 @@ static bool lr1_states_same_core(const LR1State *a, const LR1State *b) {
   return true;
 }
 
-static bool lr1_states_equal(const LR1State *a, const LR1State *b) {
+static bool lr1_states_equal(const LR1State* a, const LR1State* b) {
   if (a->items.size != b->items.size) {
     return false;
   }
   for (size_t i = 0; i < a->items.size; ++i) {
-    LR1Item *item_a = a->items.items[i];
+    LR1Item* item_a = a->items.items[i];
     bool found = false;
     for (size_t j = 0; j < b->items.size; ++j) {
-      LR1Item *item_b = b->items.items[j];
+      LR1Item* item_b = b->items.items[j];
       if (lr1_items_equal(item_a, item_b)) {
         found = true;
         break;
@@ -170,9 +170,9 @@ static bool lr1_states_equal(const LR1State *a, const LR1State *b) {
   return true;
 }
 
-static LR1Transition *lr1_transition_create(const char *symbol,
-                                            LR1State *state) {
-  LR1Transition *transition = calloc(1, sizeof(*transition));
+static LR1Transition* lr1_transition_create(const char* symbol,
+                                            LR1State* state) {
+  LR1Transition* transition = calloc(1, sizeof(*transition));
   if (!transition) {
     return NULL;
   }
@@ -181,16 +181,16 @@ static LR1Transition *lr1_transition_create(const char *symbol,
   return transition;
 }
 
-static void lr1_transition_destroy(void *ptr) {
-  LR1Transition *transition = ptr;
+static void lr1_transition_destroy(void* ptr) {
+  LR1Transition* transition = ptr;
   if (!transition) {
     return;
   }
   free(transition);
 }
 
-static GoToNode *goto_node_create(const char *symbol, size_t state) {
-  GoToNode *node = calloc(1, sizeof(*node));
+static GoToNode* goto_node_create(const char* symbol, size_t state) {
+  GoToNode* node = calloc(1, sizeof(*node));
   if (!node) {
     return NULL;
   }
@@ -199,14 +199,14 @@ static GoToNode *goto_node_create(const char *symbol, size_t state) {
   return node;
 }
 
-static void goto_node_destroy(void *ptr) {
-  GoToNode *node = ptr;
+static void goto_node_destroy(void* ptr) {
+  GoToNode* node = ptr;
   free(node);
 }
 
-static ActionEntry *action_entry_create(const char *terminal, ActionType type,
+static ActionEntry* action_entry_create(const char* terminal, ActionType type,
                                         size_t operand) {
-  ActionEntry *entry = calloc(1, sizeof(*entry));
+  ActionEntry* entry = calloc(1, sizeof(*entry));
   if (!entry) {
     return NULL;
   }
@@ -216,33 +216,35 @@ static ActionEntry *action_entry_create(const char *terminal, ActionType type,
   return entry;
 }
 
-static void action_entry_destroy(void *ptr) {
-  ActionEntry *entry = ptr;
+static void action_entry_destroy(void* ptr) {
+  ActionEntry* entry = ptr;
   free(entry);
 }
 
-static LR1Parser *parser_create(Grammar *grammar, clexLexer *lexer,
-                                const char *const *tokenKindStr) {
-  LR1Parser *parser = calloc(1, sizeof(*parser));
+static LR1Parser* parser_create(Grammar* grammar, clexLexer* lexer,
+                                const char* const* tokenKindStr,
+                                size_t tokenKindCount) {
+  LR1Parser* parser = calloc(1, sizeof(*parser));
   if (!parser) {
     return NULL;
   }
   parser->grammar = grammar;
   parser->lexer = lexer;
   parser->tokenKindStr = tokenKindStr;
+  parser->tokenKindCount = tokenKindCount;
   ptr_vec_init(&parser->collection);
   ptr_vec_init(&parser->goto_table);
   ptr_vec_init(&parser->action_table);
   return parser;
 }
 
-void cparseFreeParser(LR1Parser *parser) {
+void cparseFreeParser(LR1Parser* parser) {
   if (!parser) {
     return;
   }
   ptr_vec_free(&parser->collection, true, lr1_state_destroy);
   for (size_t i = 0; i < parser->goto_table.size; ++i) {
-    PtrVec *row = parser->goto_table.items[i];
+    PtrVec* row = parser->goto_table.items[i];
     if (row) {
       ptr_vec_free(row, true, goto_node_destroy);
       free(row);
@@ -250,7 +252,7 @@ void cparseFreeParser(LR1Parser *parser) {
   }
   ptr_vec_free(&parser->goto_table, false, NULL);
   for (size_t i = 0; i < parser->action_table.size; ++i) {
-    PtrVec *row = parser->action_table.items[i];
+    PtrVec* row = parser->action_table.items[i];
     if (row) {
       ptr_vec_free(row, true, action_entry_destroy);
       free(row);
@@ -260,9 +262,9 @@ void cparseFreeParser(LR1Parser *parser) {
   free(parser);
 }
 
-static PtrVec *ensure_row(PtrVec *table, size_t index) {
+static PtrVec* ensure_row(PtrVec* table, size_t index) {
   while (table->size <= index) {
-    PtrVec *row = calloc(1, sizeof(*row));
+    PtrVec* row = calloc(1, sizeof(*row));
     if (!row) {
       return NULL;
     }
@@ -276,12 +278,12 @@ static PtrVec *ensure_row(PtrVec *table, size_t index) {
   return table->items[index];
 }
 
-static ActionEntry *action_row_find(PtrVec *row, const char *terminal) {
-  if (!row) {
+static ActionEntry* action_row_find(PtrVec* row, const char* terminal) {
+  if (!row || !terminal) {
     return NULL;
   }
   for (size_t i = 0; i < row->size; ++i) {
-    ActionEntry *entry = row->items[i];
+    ActionEntry* entry = row->items[i];
     if (strcmp(entry->terminal, terminal) == 0) {
       return entry;
     }
@@ -289,21 +291,22 @@ static ActionEntry *action_row_find(PtrVec *row, const char *terminal) {
   return NULL;
 }
 
-static bool add_action(LR1Parser *parser, size_t state, const char *terminal,
+static bool add_action(LR1Parser* parser, size_t state, const char* terminal,
                        ActionType type, size_t operand) {
-  PtrVec *row = ensure_row(&parser->action_table, state);
+  PtrVec* row = ensure_row(&parser->action_table, state);
   if (!row) {
     return false;
   }
-  ActionEntry *existing = action_row_find(row, terminal);
+  ActionEntry* existing = action_row_find(row, terminal);
   if (existing) {
     if (existing->action.type != type || existing->action.operand != operand) {
       fprintf(stderr, "LR conflict on state %zu, terminal %s\n", state,
               terminal);
+      return false;
     }
     return true;
   }
-  ActionEntry *entry = action_entry_create(terminal, type, operand);
+  ActionEntry* entry = action_entry_create(terminal, type, operand);
   if (!entry) {
     return false;
   }
@@ -314,12 +317,12 @@ static bool add_action(LR1Parser *parser, size_t state, const char *terminal,
   return true;
 }
 
-static GoToNode *goto_row_find(PtrVec *row, const char *symbol) {
+static GoToNode* goto_row_find(PtrVec* row, const char* symbol) {
   if (!row) {
     return NULL;
   }
   for (size_t i = 0; i < row->size; ++i) {
-    GoToNode *node = row->items[i];
+    GoToNode* node = row->items[i];
     if (strcmp(node->symbol, symbol) == 0) {
       return node;
     }
@@ -327,16 +330,16 @@ static GoToNode *goto_row_find(PtrVec *row, const char *symbol) {
   return NULL;
 }
 
-static bool add_goto(LR1Parser *parser, size_t state, const char *symbol,
+static bool add_goto(LR1Parser* parser, size_t state, const char* symbol,
                      size_t target) {
-  PtrVec *row = ensure_row(&parser->goto_table, state);
+  PtrVec* row = ensure_row(&parser->goto_table, state);
   if (!row) {
     return false;
   }
   if (goto_row_find(row, symbol)) {
     return true;
   }
-  GoToNode *node = goto_node_create(symbol, target);
+  GoToNode* node = goto_node_create(symbol, target);
   if (!node) {
     return false;
   }
@@ -347,8 +350,8 @@ static bool add_goto(LR1Parser *parser, size_t state, const char *symbol,
   return true;
 }
 
-static size_t parser_state_index(const LR1Parser *parser,
-                                 const LR1State *state) {
+static size_t parser_state_index(const LR1Parser* parser,
+                                 const LR1State* state) {
   for (size_t i = 0; i < parser->collection.size; ++i) {
     if (parser->collection.items[i] == state) {
       return i;
@@ -357,15 +360,15 @@ static size_t parser_state_index(const LR1Parser *parser,
   return (size_t)-1;
 }
 
-static bool parser_add_state(LR1Parser *parser, LR1State *state) {
+static bool parser_add_state(LR1Parser* parser, LR1State* state) {
   return ptr_vec_push(&parser->collection, state);
 }
 
-static LR1State *parser_find_state(const LR1Parser *parser,
-                                   const LR1State *candidate,
+static LR1State* parser_find_state(const LR1Parser* parser,
+                                   const LR1State* candidate,
                                    bool by_core_only) {
   for (size_t i = 0; i < parser->collection.size; ++i) {
-    LR1State *existing = parser->collection.items[i];
+    LR1State* existing = parser->collection.items[i];
     if (by_core_only ? lr1_states_same_core(existing, candidate)
                      : lr1_states_equal(existing, candidate)) {
       return existing;
@@ -374,15 +377,15 @@ static LR1State *parser_find_state(const LR1Parser *parser,
   return NULL;
 }
 
-static const SymbolSetEntry *grammar_first_entry(const Grammar *grammar,
-                                                 const char *symbol) {
+static const SymbolSetEntry* grammar_first_entry(const Grammar* grammar,
+                                                 const char* symbol) {
   return symbol_set_find_const(&grammar->first, symbol);
 }
 
-static bool compute_first_sequence(const Grammar *grammar, const Rule *rule,
+static bool compute_first_sequence(const Grammar* grammar, const Rule* rule,
                                    size_t start_index,
-                                   const StringVec *fallback,
-                                   StringVec *output) {
+                                   const StringVec* fallback,
+                                   StringVec* output) {
   string_vec_init(output);
   bool add_fallback = true;
   if (start_index >= rule->right.size) {
@@ -394,29 +397,29 @@ static bool compute_first_sequence(const Grammar *grammar, const Rule *rule,
     return true;
   }
   for (size_t i = start_index; i < rule->right.size; ++i) {
-    const char *symbol = rule->right.items[i];
+    const char* symbol = rule->right.items[i];
     if (strcmp(symbol, CPARSE_EPSILON) == 0) {
       continue;
     }
     if (grammar_is_terminal(grammar, symbol) ||
         !grammar_is_nonterminal(grammar, symbol)) {
-      if (!string_vec_push_unique(output, (char *)symbol)) {
+      if (!string_vec_push_unique(output, (char*)symbol)) {
         return false;
       }
       add_fallback = false;
       break;
     }
-    const SymbolSetEntry *first_entry = grammar_first_entry(grammar, symbol);
+    const SymbolSetEntry* first_entry = grammar_first_entry(grammar, symbol);
     if (!first_entry) {
       add_fallback = false;
       break;
     }
     bool epsilon_present = false;
     for (size_t j = 0; j < first_entry->values.size; ++j) {
-      const char *candidate = first_entry->values.items[j];
+      const char* candidate = first_entry->values.items[j];
       if (strcmp(candidate, CPARSE_EPSILON) == 0) {
         epsilon_present = true;
-      } else if (!string_vec_push_unique(output, (char *)candidate)) {
+      } else if (!string_vec_push_unique(output, (char*)candidate)) {
         return false;
       }
     }
@@ -433,17 +436,17 @@ static bool compute_first_sequence(const Grammar *grammar, const Rule *rule,
   return true;
 }
 
-static bool closure(const Grammar *grammar, LR1State *state) {
+static bool closure(const Grammar* grammar, LR1State* state) {
   bool changed = true;
   while (changed) {
     changed = false;
     for (size_t i = 0; i < state->items.size; ++i) {
-      LR1Item *item = state->items.items[i];
+      LR1Item* item = state->items.items[i];
       size_t rhs_len = rule_symbol_count(item->rule);
       if (item->dot >= rhs_len) {
         continue;
       }
-      const char *symbol = item->rule->right.items[item->dot];
+      const char* symbol = item->rule->right.items[item->dot];
       if (!grammar_is_nonterminal(grammar, symbol)) {
         continue;
       }
@@ -453,17 +456,17 @@ static bool closure(const Grammar *grammar, LR1State *state) {
         return false;
       }
       for (size_t r = 0; r < grammar->rules.size; ++r) {
-        Rule *candidate_rule = grammar->rules.items[r];
+        Rule* candidate_rule = grammar->rules.items[r];
         if (strcmp(candidate_rule->left, symbol) != 0) {
           continue;
         }
         size_t initial_dot = rule_is_epsilon(candidate_rule)
                                  ? rule_symbol_count(candidate_rule)
                                  : 0;
-        LR1Item *existing =
+        LR1Item* existing =
             lr1_state_find_item(state, candidate_rule, initial_dot);
         if (!existing) {
-          LR1Item *new_item = lr1_item_create(candidate_rule, initial_dot);
+          LR1Item* new_item = lr1_item_create(candidate_rule, initial_dot);
           if (!new_item) {
             string_vec_free(&lookahead, false);
             return false;
@@ -498,24 +501,24 @@ static bool closure(const Grammar *grammar, LR1State *state) {
   return true;
 }
 
-static LR1State *goto_state(const Grammar *grammar, const LR1State *state,
-                            const char *symbol) {
-  LR1State *next = lr1_state_create();
+static LR1State* goto_state(const Grammar* grammar, const LR1State* state,
+                            const char* symbol) {
+  LR1State* next = lr1_state_create();
   if (!next) {
     return NULL;
   }
   bool has_item = false;
   for (size_t i = 0; i < state->items.size; ++i) {
-    LR1Item *item = state->items.items[i];
+    LR1Item* item = state->items.items[i];
     size_t rhs_len = rule_symbol_count(item->rule);
     if (item->dot >= rhs_len) {
       continue;
     }
-    const char *current = item->rule->right.items[item->dot];
+    const char* current = item->rule->right.items[item->dot];
     if (strcmp(current, symbol) != 0) {
       continue;
     }
-    LR1Item *advanced = lr1_item_create(item->rule, item->dot + 1);
+    LR1Item* advanced = lr1_item_create(item->rule, item->dot + 1);
     if (!advanced) {
       lr1_state_destroy(next);
       return NULL;
@@ -543,9 +546,9 @@ static LR1State *goto_state(const Grammar *grammar, const LR1State *state,
   return next;
 }
 
-static bool build_lr1_collection(LR1Parser *parser) {
-  Rule *start_rule = parser->grammar->rules.items[0];
-  LR1Item *start_item = lr1_item_create(start_rule, 0);
+static bool build_lr1_collection(LR1Parser* parser) {
+  Rule* start_rule = parser->grammar->rules.items[0];
+  LR1Item* start_item = lr1_item_create(start_rule, 0);
   if (!start_item) {
     return false;
   }
@@ -553,7 +556,7 @@ static bool build_lr1_collection(LR1Parser *parser) {
     lr1_item_destroy(start_item);
     return false;
   }
-  LR1State *start_state = lr1_state_create();
+  LR1State* start_state = lr1_state_create();
   if (!start_state) {
     lr1_item_destroy(start_item);
     return false;
@@ -572,27 +575,27 @@ static bool build_lr1_collection(LR1Parser *parser) {
     return false;
   }
   for (size_t i = 0; i < parser->collection.size; ++i) {
-    LR1State *state = parser->collection.items[i];
+    LR1State* state = parser->collection.items[i];
     StringVec symbols;
     string_vec_init(&symbols);
     for (size_t j = 0; j < state->items.size; ++j) {
-      LR1Item *item = state->items.items[j];
+      LR1Item* item = state->items.items[j];
       size_t rhs_len = rule_symbol_count(item->rule);
       if (item->dot >= rhs_len) {
         continue;
       }
-      const char *symbol = item->rule->right.items[item->dot];
+      const char* symbol = item->rule->right.items[item->dot];
       if (strcmp(symbol, CPARSE_EPSILON) == 0) {
         continue;
       }
-      string_vec_push_unique(&symbols, (char *)symbol);
+      string_vec_push_unique(&symbols, (char*)symbol);
     }
     for (size_t s = 0; s < symbols.size; ++s) {
-      LR1State *next = goto_state(parser->grammar, state, symbols.items[s]);
+      LR1State* next = goto_state(parser->grammar, state, symbols.items[s]);
       if (!next) {
         continue;
       }
-      LR1State *existing = parser_find_state(parser, next, false);
+      LR1State* existing = parser_find_state(parser, next, false);
       if (!existing) {
         if (!parser_add_state(parser, next)) {
           lr1_state_destroy(next);
@@ -603,7 +606,7 @@ static bool build_lr1_collection(LR1Parser *parser) {
       } else {
         lr1_state_destroy(next);
       }
-      LR1Transition *transition =
+      LR1Transition* transition =
           lr1_transition_create(symbols.items[s], existing);
       if (!transition) {
         string_vec_free(&symbols, false);
@@ -620,21 +623,21 @@ static bool build_lr1_collection(LR1Parser *parser) {
   return true;
 }
 
-static LR1Item *lr1_item_clone_core(const LR1Item *item) {
-  LR1Item *clone = lr1_item_create(item->rule, item->dot);
+static LR1Item* lr1_item_clone_core(const LR1Item* item) {
+  LR1Item* clone = lr1_item_create(item->rule, item->dot);
   if (!clone) {
     return NULL;
   }
   return clone;
 }
 
-static LR1State *lr1_state_clone_core(const LR1State *state) {
-  LR1State *clone = lr1_state_create();
+static LR1State* lr1_state_clone_core(const LR1State* state) {
+  LR1State* clone = lr1_state_create();
   if (!clone) {
     return NULL;
   }
   for (size_t i = 0; i < state->items.size; ++i) {
-    LR1Item *item = lr1_item_clone_core(state->items.items[i]);
+    LR1Item* item = lr1_item_clone_core(state->items.items[i]);
     if (!item) {
       lr1_state_destroy(clone);
       return NULL;
@@ -648,13 +651,13 @@ static LR1State *lr1_state_clone_core(const LR1State *state) {
   return clone;
 }
 
-static bool merge_states_into(LR1State *target, const LR1State *source) {
+static bool merge_states_into(LR1State* target, const LR1State* source) {
   for (size_t i = 0; i < source->items.size; ++i) {
-    LR1Item *source_item = source->items.items[i];
-    LR1Item *target_item =
+    LR1Item* source_item = source->items.items[i];
+    LR1Item* target_item =
         lr1_state_find_item(target, source_item->rule, source_item->dot);
     if (!target_item) {
-      LR1Item *clone = lr1_item_clone_core(source_item);
+      LR1Item* clone = lr1_item_clone_core(source_item);
       if (!clone) {
         return false;
       }
@@ -677,9 +680,10 @@ static bool merge_states_into(LR1State *target, const LR1State *source) {
   return true;
 }
 
-static bool build_lalr_collection(LR1Parser *parser) {
-  LR1Parser *lr1_parser =
-      parser_create(parser->grammar, parser->lexer, parser->tokenKindStr);
+static bool build_lalr_collection(LR1Parser* parser) {
+  LR1Parser* lr1_parser =
+      parser_create(parser->grammar, parser->lexer, parser->tokenKindStr,
+                    parser->tokenKindCount);
   if (!lr1_parser) {
     return false;
   }
@@ -695,8 +699,8 @@ static bool build_lalr_collection(LR1Parser *parser) {
     return false;
   }
   for (size_t i = 0; i < lr1_parser->collection.size; ++i) {
-    LR1State *source = lr1_parser->collection.items[i];
-    LR1State *existing = parser_find_state(parser, source, true);
+    LR1State* source = lr1_parser->collection.items[i];
+    LR1State* existing = parser_find_state(parser, source, true);
     bool new_state_created = false;
     if (!existing) {
       existing = lr1_state_clone_core(source);
@@ -728,16 +732,16 @@ static bool build_lalr_collection(LR1Parser *parser) {
     }
   }
   for (size_t i = 0; i < lr1_parser->collection.size; ++i) {
-    LR1State *source = lr1_parser->collection.items[i];
-    LR1State *source_mapped = state_map.items[i];
+    LR1State* source = lr1_parser->collection.items[i];
+    LR1State* source_mapped = state_map.items[i];
     for (size_t t = 0; t < source->transitions.size; ++t) {
-      LR1Transition *transition = source->transitions.items[t];
+      LR1Transition* transition = source->transitions.items[t];
       size_t target_index = parser_state_index(lr1_parser, transition->state);
-      LR1State *mapped_target = state_map.items[target_index];
+      LR1State* mapped_target = state_map.items[target_index];
       bool exists = false;
       for (size_t existing_index = 0;
            existing_index < source_mapped->transitions.size; ++existing_index) {
-        LR1Transition *existing_transition =
+        LR1Transition* existing_transition =
             source_mapped->transitions.items[existing_index];
         if (strcmp(existing_transition->symbol, transition->symbol) == 0 &&
             existing_transition->state == mapped_target) {
@@ -746,7 +750,7 @@ static bool build_lalr_collection(LR1Parser *parser) {
         }
       }
       if (!exists) {
-        LR1Transition *new_transition =
+        LR1Transition* new_transition =
             lr1_transition_create(transition->symbol, mapped_target);
         if (!new_transition) {
           ptr_vec_free(&state_map, false, NULL);
@@ -767,7 +771,7 @@ static bool build_lalr_collection(LR1Parser *parser) {
   return true;
 }
 
-static ssize_t grammar_rule_index(const Grammar *grammar, const Rule *rule) {
+static ssize_t grammar_rule_index(const Grammar* grammar, const Rule* rule) {
   for (size_t i = 0; i < grammar->rules.size; ++i) {
     if (grammar->rules.items[i] == rule) {
       return (ssize_t)i;
@@ -776,11 +780,11 @@ static ssize_t grammar_rule_index(const Grammar *grammar, const Rule *rule) {
   return -1;
 }
 
-static bool build_tables(LR1Parser *parser) {
+static bool build_tables(LR1Parser* parser) {
   for (size_t i = 0; i < parser->collection.size; ++i) {
-    LR1State *state = parser->collection.items[i];
+    LR1State* state = parser->collection.items[i];
     for (size_t t = 0; t < state->transitions.size; ++t) {
-      LR1Transition *transition = state->transitions.items[t];
+      LR1Transition* transition = state->transitions.items[t];
       size_t target_index = parser_state_index(parser, transition->state);
       if (grammar_is_nonterminal(parser->grammar, transition->symbol)) {
         if (!add_goto(parser, i, transition->symbol, target_index)) {
@@ -794,7 +798,7 @@ static bool build_tables(LR1Parser *parser) {
       }
     }
     for (size_t item_index = 0; item_index < state->items.size; ++item_index) {
-      LR1Item *item = state->items.items[item_index];
+      LR1Item* item = state->items.items[item_index];
       size_t rhs_len = rule_symbol_count(item->rule);
       if (item->dot < rhs_len) {
         continue;
@@ -820,9 +824,11 @@ static bool build_tables(LR1Parser *parser) {
   return true;
 }
 
-LR1Parser *cparseCreateLR1Parser(Grammar *grammar, clexLexer *lexer,
-                                 const char *const *tokenKindStr) {
-  LR1Parser *parser = parser_create(grammar, lexer, tokenKindStr);
+LR1Parser* cparseCreateLR1Parser(Grammar* grammar, clexLexer* lexer,
+                                 const char* const* tokenKindStr,
+                                 size_t tokenKindCount) {
+  LR1Parser* parser =
+      parser_create(grammar, lexer, tokenKindStr, tokenKindCount);
   if (!parser) {
     return NULL;
   }
@@ -837,9 +843,11 @@ LR1Parser *cparseCreateLR1Parser(Grammar *grammar, clexLexer *lexer,
   return parser;
 }
 
-LALR1Parser *cparseCreateLALR1Parser(Grammar *grammar, clexLexer *lexer,
-                                     const char *const *tokenKindStr) {
-  LR1Parser *parser = parser_create(grammar, lexer, tokenKindStr);
+LALR1Parser* cparseCreateLALR1Parser(Grammar* grammar, clexLexer* lexer,
+                                     const char* const* tokenKindStr,
+                                     size_t tokenKindCount) {
+  LR1Parser* parser =
+      parser_create(grammar, lexer, tokenKindStr, tokenKindCount);
   if (!parser) {
     return NULL;
   }
@@ -854,22 +862,22 @@ LALR1Parser *cparseCreateLALR1Parser(Grammar *grammar, clexLexer *lexer,
   return parser;
 }
 
-static ActionEntry *parser_get_action(const LR1Parser *parser, size_t state,
-                                      const char *terminal) {
+static ActionEntry* parser_get_action(const LR1Parser* parser, size_t state,
+                                      const char* terminal) {
   if (state >= parser->action_table.size) {
     return NULL;
   }
-  PtrVec *row = parser->action_table.items[state];
+  PtrVec* row = parser->action_table.items[state];
   return action_row_find(row, terminal);
 }
 
-static ssize_t parser_goto_state(const LR1Parser *parser, size_t state,
-                                 const char *symbol) {
+static ssize_t parser_goto_state(const LR1Parser* parser, size_t state,
+                                 const char* symbol) {
   if (state >= parser->goto_table.size) {
     return -1;
   }
-  PtrVec *row = parser->goto_table.items[state];
-  GoToNode *node = goto_row_find(row, symbol);
+  PtrVec* row = parser->goto_table.items[state];
+  GoToNode* node = goto_row_find(row, symbol);
   if (!node) {
     return -1;
   }
@@ -877,24 +885,24 @@ static ssize_t parser_goto_state(const LR1Parser *parser, size_t state,
 }
 
 typedef struct {
-  size_t *data;
+  size_t* data;
   size_t size;
   size_t capacity;
 } SizeTStack;
 
-static void stack_init(SizeTStack *stack) {
+static void stack_init(SizeTStack* stack) {
   stack->data = NULL;
   stack->size = 0;
   stack->capacity = 0;
 }
 
-static void stack_free(SizeTStack *stack) {
+static void stack_free(SizeTStack* stack) {
   free(stack->data);
   stack->data = NULL;
   stack->size = stack->capacity = 0;
 }
 
-static bool stack_reserve(SizeTStack *stack, size_t capacity) {
+static bool stack_reserve(SizeTStack* stack, size_t capacity) {
   if (stack->capacity >= capacity) {
     return true;
   }
@@ -902,7 +910,7 @@ static bool stack_reserve(SizeTStack *stack, size_t capacity) {
   while (new_capacity < capacity) {
     new_capacity *= 2;
   }
-  size_t *values = realloc(stack->data, new_capacity * sizeof(size_t));
+  size_t* values = realloc(stack->data, new_capacity * sizeof(size_t));
   if (!values) {
     return false;
   }
@@ -911,7 +919,7 @@ static bool stack_reserve(SizeTStack *stack, size_t capacity) {
   return true;
 }
 
-static bool stack_push(SizeTStack *stack, size_t value) {
+static bool stack_push(SizeTStack* stack, size_t value) {
   if (!stack_reserve(stack, stack->size + 1)) {
     return false;
   }
@@ -919,7 +927,7 @@ static bool stack_push(SizeTStack *stack, size_t value) {
   return true;
 }
 
-static bool stack_pop(SizeTStack *stack, size_t *value) {
+static bool stack_pop(SizeTStack* stack, size_t* value) {
   if (stack->size == 0) {
     return false;
   }
@@ -930,39 +938,39 @@ static bool stack_pop(SizeTStack *stack, size_t *value) {
   return true;
 }
 
-static size_t stack_top(const SizeTStack *stack) {
+static size_t stack_top(const SizeTStack* stack) {
   assert(stack->size > 0);
   return stack->data[stack->size - 1];
 }
 
-static bool ptr_vec_push_ptr(PtrVec *vec, void *value) {
+static bool ptr_vec_push_ptr(PtrVec* vec, void* value) {
   return ptr_vec_push(vec, value);
 }
 
-static void *ptr_vec_pop_ptr(PtrVec *vec) {
+static void* ptr_vec_pop_ptr(PtrVec* vec) {
   if (vec->size == 0) {
     return NULL;
   }
-  void *value = vec->items[vec->size - 1];
+  void* value = vec->items[vec->size - 1];
   vec->size--;
   return value;
 }
 
-static ParseTreeNode *parse_tree_node_create(const char *value) {
-  ParseTreeNode *node = calloc(1, sizeof(*node));
+static ParseTreeNode* parse_tree_node_create(const char* value) {
+  ParseTreeNode* node = calloc(1, sizeof(*node));
   if (!node) {
     return NULL;
   }
-  node->value = (char *)value;
+  node->value = (char*)value;
   ptr_vec_init(&node->children);
   node->token.kind = -1;
   node->token.lexeme = NULL;
   return node;
 }
 
-static ParseTreeNode *parse_tree_node_create_with_token(const char *value,
+static ParseTreeNode* parse_tree_node_create_with_token(const char* value,
                                                         clexToken token) {
-  ParseTreeNode *node = parse_tree_node_create(value);
+  ParseTreeNode* node = parse_tree_node_create(value);
   if (!node) {
     return NULL;
   }
@@ -970,7 +978,7 @@ static ParseTreeNode *parse_tree_node_create_with_token(const char *value,
   return node;
 }
 
-void cparseFreeParseTree(ParseTreeNode *node) {
+void cparseFreeParseTree(ParseTreeNode* node) {
   if (!node) {
     return;
   }
@@ -982,9 +990,9 @@ void cparseFreeParseTree(ParseTreeNode *node) {
   free(node);
 }
 
-static bool accept_or_parse(LR1Parser *parser, const char *input,
-                            bool build_tree, ParseTreeNode **out_tree,
-                            bool *accepted) {
+static bool accept_or_parse(LR1Parser* parser, const char* input,
+                            bool build_tree, ParseTreeNode** out_tree,
+                            bool* accepted) {
   if (!parser || !parser->lexer) {
     return false;
   }
@@ -1015,16 +1023,35 @@ static bool accept_or_parse(LR1Parser *parser, const char *input,
       token = clex(parser->lexer);
     }
     lex_next = true;
-    const char *terminal =
-        token.kind >= 0 ? parser->tokenKindStr[token.kind] : kEndMarker;
+    const char* terminal = NULL;
+    if (token.kind == CLEX_TOKEN_EOF) {
+      terminal = kEndMarker;
+    } else if (token.kind == CLEX_TOKEN_ERROR) {
+      success = false;
+      break;
+    } else if (token.kind >= 0) {
+      if (!parser->tokenKindStr ||
+          (size_t)token.kind >= parser->tokenKindCount) {
+        success = false;
+        break;
+      }
+      terminal = parser->tokenKindStr[token.kind];
+      if (!terminal) {
+        success = false;
+        break;
+      }
+    } else {
+      success = false;
+      break;
+    }
     size_t current_state = stack_top(&state_stack);
-    ActionEntry *action = parser_get_action(parser, current_state, terminal);
+    ActionEntry* action = parser_get_action(parser, current_state, terminal);
     if (!action) {
       success = false;
       break;
     }
     if (action->action.type == ACTION_SHIFT) {
-      if (!ptr_vec_push_ptr(&symbol_stack, (void *)terminal)) {
+      if (!ptr_vec_push_ptr(&symbol_stack, (void*)terminal)) {
         success = false;
         break;
       }
@@ -1033,7 +1060,7 @@ static bool accept_or_parse(LR1Parser *parser, const char *input,
         break;
       }
       if (build_tree) {
-        ParseTreeNode *leaf =
+        ParseTreeNode* leaf =
             parse_tree_node_create_with_token(terminal, token);
         if (!leaf || !ptr_vec_push_ptr(&node_stack, leaf)) {
           if (leaf) {
@@ -1047,7 +1074,7 @@ static bool accept_or_parse(LR1Parser *parser, const char *input,
         free_token(&token);
       }
     } else if (action->action.type == ACTION_REDUCE) {
-      Rule *rule = parser->grammar->rules.items[action->action.operand];
+      Rule* rule = parser->grammar->rules.items[action->action.operand];
       size_t rhs_len = rule_symbol_count(rule);
       PtrVec children;
       if (build_tree) {
@@ -1057,7 +1084,7 @@ static bool accept_or_parse(LR1Parser *parser, const char *input,
         ptr_vec_pop_ptr(&symbol_stack);
         stack_pop(&state_stack, NULL);
         if (build_tree) {
-          ParseTreeNode *child = ptr_vec_pop_ptr(&node_stack);
+          ParseTreeNode* child = ptr_vec_pop_ptr(&node_stack);
           ptr_vec_push_ptr(&children, child);
         }
       }
@@ -1096,7 +1123,7 @@ static bool accept_or_parse(LR1Parser *parser, const char *input,
       }
       lex_next = false;
       if (build_tree) {
-        ParseTreeNode *parent = parse_tree_node_create(rule->left);
+        ParseTreeNode* parent = parse_tree_node_create(rule->left);
         if (!parent) {
           for (size_t i = 0; i < children.size; ++i) {
             cparseFreeParseTree(children.items[i]);
@@ -1130,7 +1157,7 @@ static bool accept_or_parse(LR1Parser *parser, const char *input,
     free_token(&token);
     if (build_tree) {
       while (node_stack.size > 0) {
-        ParseTreeNode *node = ptr_vec_pop_ptr(&node_stack);
+        ParseTreeNode* node = ptr_vec_pop_ptr(&node_stack);
         cparseFreeParseTree(node);
       }
       ptr_vec_free(&node_stack, false, NULL);
@@ -1141,7 +1168,7 @@ static bool accept_or_parse(LR1Parser *parser, const char *input,
   }
 
   if (build_tree) {
-    ParseTreeNode *root =
+    ParseTreeNode* root =
         node_stack.size > 0 ? node_stack.items[node_stack.size - 1] : NULL;
     if (out_tree) {
       *out_tree = root;
@@ -1156,7 +1183,7 @@ static bool accept_or_parse(LR1Parser *parser, const char *input,
   return true;
 }
 
-bool cparseAccept(LR1Parser *parser, const char *input) {
+bool cparseAccept(LR1Parser* parser, const char* input) {
   bool accepted = false;
   if (!accept_or_parse(parser, input, false, NULL, &accepted)) {
     return false;
@@ -1164,8 +1191,8 @@ bool cparseAccept(LR1Parser *parser, const char *input) {
   return accepted;
 }
 
-ParseTreeNode *cparse(LR1Parser *parser, const char *input) {
-  ParseTreeNode *tree = NULL;
+ParseTreeNode* cparse(LR1Parser* parser, const char* input) {
+  ParseTreeNode* tree = NULL;
   bool accepted = false;
   if (!accept_or_parse(parser, input, true, &tree, &accepted) || !accepted) {
     cparseFreeParseTree(tree);
@@ -1175,12 +1202,12 @@ ParseTreeNode *cparse(LR1Parser *parser, const char *input) {
 }
 
 typedef struct {
-  char *data;
+  char* data;
   size_t size;
   size_t capacity;
 } StringBuilder;
 
-static bool sb_init(StringBuilder *sb, size_t capacity) {
+static bool sb_init(StringBuilder* sb, size_t capacity) {
   sb->data = malloc(capacity);
   if (!sb->data) {
     sb->size = sb->capacity = 0;
@@ -1192,7 +1219,7 @@ static bool sb_init(StringBuilder *sb, size_t capacity) {
   return true;
 }
 
-static bool sb_reserve(StringBuilder *sb, size_t additional) {
+static bool sb_reserve(StringBuilder* sb, size_t additional) {
   size_t required = sb->size + additional + 1;
   if (required <= sb->capacity) {
     return true;
@@ -1201,7 +1228,7 @@ static bool sb_reserve(StringBuilder *sb, size_t additional) {
   while (new_capacity < required) {
     new_capacity *= 2;
   }
-  char *data = realloc(sb->data, new_capacity);
+  char* data = realloc(sb->data, new_capacity);
   if (!data) {
     return false;
   }
@@ -1210,7 +1237,7 @@ static bool sb_reserve(StringBuilder *sb, size_t additional) {
   return true;
 }
 
-static bool sb_append(StringBuilder *sb, const char *text) {
+static bool sb_append(StringBuilder* sb, const char* text) {
   size_t len = strlen(text);
   if (!sb_reserve(sb, len)) {
     return false;
@@ -1221,13 +1248,13 @@ static bool sb_append(StringBuilder *sb, const char *text) {
   return true;
 }
 
-static bool sb_append_int(StringBuilder *sb, size_t value) {
+static bool sb_append_int(StringBuilder* sb, size_t value) {
   char buffer[32];
   snprintf(buffer, sizeof(buffer), "%zu", value);
   return sb_append(sb, buffer);
 }
 
-char *getLR1ParserAsString(LR1Parser *parser) {
+char* getLR1ParserAsString(LR1Parser* parser) {
   if (!parser) {
     return NULL;
   }
@@ -1237,12 +1264,12 @@ char *getLR1ParserAsString(LR1Parser *parser) {
   }
   sb_append(&sb, "States:\n");
   for (size_t i = 0; i < parser->collection.size; ++i) {
-    LR1State *state = parser->collection.items[i];
+    LR1State* state = parser->collection.items[i];
     sb_append(&sb, "State ");
     sb_append_int(&sb, i);
     sb_append(&sb, ":\n");
     for (size_t j = 0; j < state->items.size; ++j) {
-      LR1Item *item = state->items.items[j];
+      LR1Item* item = state->items.items[j];
       sb_append(&sb, "  ");
       sb_append(&sb, item->rule->left);
       sb_append(&sb, " -> ");
@@ -1268,7 +1295,7 @@ char *getLR1ParserAsString(LR1Parser *parser) {
     if (state->transitions.size > 0) {
       sb_append(&sb, "  Transitions:\n");
       for (size_t t = 0; t < state->transitions.size; ++t) {
-        LR1Transition *transition = state->transitions.items[t];
+        LR1Transition* transition = state->transitions.items[t];
         sb_append(&sb, "    ");
         sb_append(&sb, transition->symbol);
         sb_append(&sb, " -> ");
@@ -1279,12 +1306,12 @@ char *getLR1ParserAsString(LR1Parser *parser) {
   }
   sb_append(&sb, "Goto table:\n");
   for (size_t i = 0; i < parser->goto_table.size; ++i) {
-    PtrVec *row = parser->goto_table.items[i];
+    PtrVec* row = parser->goto_table.items[i];
     if (!row || row->size == 0) {
       continue;
     }
     for (size_t j = 0; j < row->size; ++j) {
-      GoToNode *node = row->items[j];
+      GoToNode* node = row->items[j];
       sb_append(&sb, "  ");
       sb_append_int(&sb, i);
       sb_append(&sb, " ");
@@ -1296,12 +1323,12 @@ char *getLR1ParserAsString(LR1Parser *parser) {
   }
   sb_append(&sb, "Action table:\n");
   for (size_t i = 0; i < parser->action_table.size; ++i) {
-    PtrVec *row = parser->action_table.items[i];
+    PtrVec* row = parser->action_table.items[i];
     if (!row || row->size == 0) {
       continue;
     }
     for (size_t j = 0; j < row->size; ++j) {
-      ActionEntry *entry = row->items[j];
+      ActionEntry* entry = row->items[j];
       sb_append(&sb, "  ");
       sb_append_int(&sb, i);
       sb_append(&sb, " ");
@@ -1316,7 +1343,7 @@ char *getLR1ParserAsString(LR1Parser *parser) {
   return sb.data;
 }
 
-char *getParseTreeAsString(ParseTreeNode *root) {
+char* getParseTreeAsString(ParseTreeNode* root) {
   if (!root) {
     return cparse_strdup("");
   }
@@ -1328,7 +1355,7 @@ char *getParseTreeAsString(ParseTreeNode *root) {
   ptr_vec_init(&stack);
   ptr_vec_push_ptr(&stack, root);
   while (stack.size > 0) {
-    ParseTreeNode *node = ptr_vec_pop_ptr(&stack);
+    ParseTreeNode* node = ptr_vec_pop_ptr(&stack);
     sb_append(&sb, node->value);
     sb_append(&sb, " ");
     sb_append(&sb, node->token.lexeme ? node->token.lexeme : "");

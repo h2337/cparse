@@ -43,7 +43,9 @@ int main(int argc, char **argv) {
   fprintf(stderr, "Grammar constructed.\n");
 
   const char *token_names[] = {"NUMBER", "PLUS", "STAR", "LPAREN", "RPAREN"};
-  LALR1Parser *parser = cparseCreateLALR1Parser(grammar, lexer, token_names);
+  LALR1Parser *parser =
+      cparseCreateLALR1Parser(grammar, lexer, token_names,
+                              sizeof(token_names) / sizeof(token_names[0]));
   if (!parser) {
     fprintf(stderr, "Failed to create parser.\n");
     cparseFreeGrammar(grammar);
@@ -89,4 +91,3 @@ int main(int argc, char **argv) {
   clexLexerDestroy(lexer);
   return EXIT_SUCCESS;
 }
-
