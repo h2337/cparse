@@ -84,10 +84,18 @@ typedef struct cparseError {
 
 typedef struct LR1Parser {
   Grammar* grammar;
-  clexLexer* lexer;    /* not owned */
-  PtrVec collection;   /* LR1State* */
-  PtrVec goto_table;   /* PtrVec* where PtrVec holds GoToNode* */
-  PtrVec action_table; /* PtrVec* where PtrVec holds ActionEntry* */
+  clexLexer* lexer;  /* not owned */
+  PtrVec collection; /* LR1State* */
+  size_t state_count;
+  size_t terminal_count;
+  size_t nonterminal_count;
+  const char** terminal_symbols;     /* terminal id -> symbol, includes "$" */
+  const char** nonterminal_symbols;  /* nonterminal id -> symbol */
+  ptrdiff_t* token_kind_to_terminal; /* token kind -> terminal id */
+  ptrdiff_t* rule_nonterminal_ids;   /* rule index -> nonterminal id */
+  ptrdiff_t* goto_table;             /* [state][nonterminal_id] -> next state */
+  ActionEntry* action_table;         /* [state][terminal_id] -> action */
+  unsigned char* action_present;     /* [state][terminal_id] presence */
   const char* const* tokenKindStr;
   size_t tokenKindCount;
   cparseError last_error;

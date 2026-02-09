@@ -8,7 +8,11 @@
 
 - Modernised LR(1) and LALR(1) construction written in portable C11.
 - Predictable performance via dynamic data structures instead of fixed-size arrays.
+- Index-based action/goto tables keyed by terminal/nonterminal IDs for O(1)
+  parse-time table lookups.
 - First/Follow set computation with useful diagnostics for malformed grammars.
+- Structured LR conflict diagnostics with state details, relevant items, and
+  competing actions.
 - Typed runtime status codes plus structured parser errors (position, expected
   terminals, offending lexeme).
 - Parse trees carry source spans (byte offset + line/column) through terminal
@@ -143,6 +147,9 @@ A -> RETURN | epsilon
 
 - The implementation avoids fixed limits and lazy `strtok()` parsing, making it suitable for larger grammars.
 - First and Follow sets are computed iteratively; unexpected productions emit diagnostics on `stderr`.
+- LR conflicts print structured diagnostics to `stderr` (state, terminal,
+  existing/incoming action, and relevant LR items) to shorten grammar-debug
+  loops.
 - The repository includes a tiny test harness in `tests.c`. Extend it with grammar-specific checks as needed.
 - Parsers borrow the `clexLexer` you pass; create it up front, register token kinds, and destroy it once you are done with parsing.
 

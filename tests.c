@@ -248,6 +248,54 @@ static void test_lalr_accept(void) {
   clexLexerDestroy(lexer);
 }
 
+static void test_indexed_parser_tables(void) {
+  clexLexer* lexer = create_basic_lexer();
+  if (!lexer) {
+    return;
+  }
+  const char* grammar_src = "S -> A IDENTIFIER SEMICOL\nA -> RETURN";
+  Grammar* grammar = cparseGrammar(grammar_src);
+  if (!grammar) {
+    clexLexerDestroy(lexer);
+    return;
+  }
+  const char* token_names[] = {"INT", "RETURN", "IDENTIFIER", "SEMICOL"};
+  LR1Parser* parser =
+      cparseCreateLR1Parser(grammar, lexer, token_names,
+                            sizeof(token_names) / sizeof(token_names[0]));
+  EXPECT_TRUE(parser != NULL, "failed to build parser for table layout test");
+  if (!parser) {
+    cparseFreeGrammar(grammar);
+    clexLexerDestroy(lexer);
+    return;
+  }
+
+  EXPECT_TRUE(parser->state_count == parser->collection.size,
+              "state_count should match LR collection size");
+  EXPECT_TRUE(parser->terminal_count >= grammar->terminals.size + 1,
+              "terminal_count should include grammar terminals and EOF");
+  EXPECT_TRUE(parser->nonterminal_count == grammar->nonterminals.size,
+              "nonterminal_count should match grammar nonterminal count");
+  EXPECT_TRUE(parser->action_table != NULL, "action table should be allocated");
+  EXPECT_TRUE(parser->action_present != NULL,
+              "action presence bitmap should be allocated");
+  EXPECT_TRUE(parser->goto_table != NULL, "goto table should be allocated");
+  EXPECT_TRUE(parser->token_kind_to_terminal != NULL,
+              "token-kind to terminal map should be allocated");
+  EXPECT_TRUE(parser->token_kind_to_terminal[0] >= 0,
+              "unused lexer tokens should still map to terminal IDs");
+  EXPECT_TRUE(parser->token_kind_to_terminal[1] >= 0,
+              "RETURN should map to a terminal ID");
+  EXPECT_TRUE(parser->token_kind_to_terminal[2] >= 0,
+              "IDENTIFIER should map to a terminal ID");
+  EXPECT_TRUE(parser->token_kind_to_terminal[3] >= 0,
+              "SEMICOL should map to a terminal ID");
+
+  cparseFreeParser(parser);
+  cparseFreeGrammar(grammar);
+  clexLexerDestroy(lexer);
+}
+
 static void test_parser_rejects_invalid_input(void) {
   clexLexer* lexer = create_basic_lexer();
   if (!lexer) {
@@ -589,6 +637,7 @@ int main(void) {
   test_lr1_accept_and_tree();
   test_parse_tree_terminals();
   test_lalr_accept();
+  test_indexed_parser_tables();
   test_parser_rejects_invalid_input();
   test_parser_rejects_lexical_errors();
   test_conflicting_grammar_is_rejected();

@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 
 #include "clex/clex.h"
 #include "cparse.h"
@@ -78,15 +77,15 @@ static bool cparse_error_add_expected(cparseError* error,
 static bool cparse_error_fill_expected_for_state(const LR1Parser* parser,
                                                  size_t state,
                                                  cparseError* error) {
-  if (!parser || !error || state >= parser->action_table.size) {
+  if (!parser || !error || state >= parser->state_count) {
     return true;
   }
-  PtrVec* row = parser->action_table.items[state];
-  if (!row) {
-    return true;
-  }
-  for (size_t i = 0; i < row->size; ++i) {
-    ActionEntry* entry = row->items[i];
+  for (size_t i = 0; i < parser->terminal_count; ++i) {
+    size_t index = state * parser->terminal_count + i;
+    if (!parser->action_present || !parser->action_present[index]) {
+      continue;
+    }
+    const ActionEntry* entry = &parser->action_table[index];
     const char* expected =
         strcmp(entry->terminal, kEndMarker) == 0 ? "EOF" : entry->terminal;
     if (!cparse_error_add_expected(error, expected)) {
@@ -273,37 +272,7 @@ static void lr1_transition_destroy(void* ptr) {
   free(transition);
 }
 
-static GoToNode* goto_node_create(const char* symbol, size_t state) {
-  GoToNode* node = calloc(1, sizeof(*node));
-  if (!node) {
-    return NULL;
-  }
-  node->symbol = symbol;
-  node->state = state;
-  return node;
-}
-
-static void goto_node_destroy(void* ptr) {
-  GoToNode* node = ptr;
-  free(node);
-}
-
-static ActionEntry* action_entry_create(const char* terminal, ActionType type,
-                                        size_t operand) {
-  ActionEntry* entry = calloc(1, sizeof(*entry));
-  if (!entry) {
-    return NULL;
-  }
-  entry->terminal = terminal;
-  entry->action.type = type;
-  entry->action.operand = operand;
-  return entry;
-}
-
-static void action_entry_destroy(void* ptr) {
-  ActionEntry* entry = ptr;
-  free(entry);
-}
+static bool parser_init_symbol_maps(LR1Parser* parser);
 
 static LR1Parser* parser_create(Grammar* grammar, clexLexer* lexer,
                                 const char* const* tokenKindStr,
@@ -317,9 +286,11 @@ static LR1Parser* parser_create(Grammar* grammar, clexLexer* lexer,
   parser->tokenKindStr = tokenKindStr;
   parser->tokenKindCount = tokenKindCount;
   ptr_vec_init(&parser->collection);
-  ptr_vec_init(&parser->goto_table);
-  ptr_vec_init(&parser->action_table);
   cparse_error_init(&parser->last_error);
+  if (!parser_init_symbol_maps(parser)) {
+    cparseFreeParser(parser);
+    return NULL;
+  }
   return parser;
 }
 
@@ -328,111 +299,397 @@ void cparseFreeParser(LR1Parser* parser) {
     return;
   }
   ptr_vec_free(&parser->collection, true, lr1_state_destroy);
-  for (size_t i = 0; i < parser->goto_table.size; ++i) {
-    PtrVec* row = parser->goto_table.items[i];
-    if (row) {
-      ptr_vec_free(row, true, goto_node_destroy);
-      free(row);
-    }
-  }
-  ptr_vec_free(&parser->goto_table, false, NULL);
-  for (size_t i = 0; i < parser->action_table.size; ++i) {
-    PtrVec* row = parser->action_table.items[i];
-    if (row) {
-      ptr_vec_free(row, true, action_entry_destroy);
-      free(row);
-    }
-  }
-  ptr_vec_free(&parser->action_table, false, NULL);
+  free(parser->terminal_symbols);
+  free(parser->nonterminal_symbols);
+  free(parser->token_kind_to_terminal);
+  free(parser->rule_nonterminal_ids);
+  free(parser->goto_table);
+  free(parser->action_table);
+  free(parser->action_present);
   cparseClearError(&parser->last_error);
   free(parser);
 }
 
-static PtrVec* ensure_row(PtrVec* table, size_t index) {
-  while (table->size <= index) {
-    PtrVec* row = calloc(1, sizeof(*row));
-    if (!row) {
-      return NULL;
-    }
-    ptr_vec_init(row);
-    if (!ptr_vec_push(table, row)) {
-      ptr_vec_free(row, false, NULL);
-      free(row);
-      return NULL;
-    }
-  }
-  return table->items[index];
-}
-
-static ActionEntry* action_row_find(PtrVec* row, const char* terminal) {
-  if (!row || !terminal) {
-    return NULL;
-  }
-  for (size_t i = 0; i < row->size; ++i) {
-    ActionEntry* entry = row->items[i];
-    if (strcmp(entry->terminal, terminal) == 0) {
-      return entry;
-    }
-  }
-  return NULL;
-}
-
-static bool add_action(LR1Parser* parser, size_t state, const char* terminal,
-                       ActionType type, size_t operand) {
-  PtrVec* row = ensure_row(&parser->action_table, state);
-  if (!row) {
+static bool safe_mul(size_t a, size_t b, size_t* out) {
+  if (!out) {
     return false;
   }
-  ActionEntry* existing = action_row_find(row, terminal);
-  if (existing) {
-    if (existing->action.type != type || existing->action.operand != operand) {
-      fprintf(stderr, "LR conflict on state %zu, terminal %s\n", state,
-              terminal);
-      return false;
-    }
+  if (a == 0 || b == 0) {
+    *out = 0;
     return true;
   }
-  ActionEntry* entry = action_entry_create(terminal, type, operand);
-  if (!entry) {
+  if (a > (size_t)-1 / b) {
     return false;
   }
-  if (!ptr_vec_push(row, entry)) {
-    action_entry_destroy(entry);
+  *out = a * b;
+  return true;
+}
+
+static size_t action_table_index(const LR1Parser* parser, size_t state,
+                                 size_t terminal_id) {
+  return state * parser->terminal_count + terminal_id;
+}
+
+static size_t goto_table_index(const LR1Parser* parser, size_t state,
+                               size_t nonterminal_id) {
+  return state * parser->nonterminal_count + nonterminal_id;
+}
+
+static ptrdiff_t parser_terminal_id(const LR1Parser* parser,
+                                    const char* terminal) {
+  if (!parser || !terminal) {
+    return -1;
+  }
+  for (size_t i = 0; i < parser->terminal_count; ++i) {
+    const char* candidate = parser->terminal_symbols[i];
+    if (candidate && strcmp(candidate, terminal) == 0) {
+      return (ptrdiff_t)i;
+    }
+  }
+  return -1;
+}
+
+static ptrdiff_t parser_nonterminal_id(const LR1Parser* parser,
+                                       const char* nonterminal) {
+  if (!parser || !nonterminal) {
+    return -1;
+  }
+  for (size_t i = 0; i < parser->nonterminal_count; ++i) {
+    const char* candidate = parser->nonterminal_symbols[i];
+    if (candidate && strcmp(candidate, nonterminal) == 0) {
+      return (ptrdiff_t)i;
+    }
+  }
+  return -1;
+}
+
+static bool symbol_array_contains(const char* const* symbols, size_t count,
+                                  const char* symbol) {
+  if (!symbols || !symbol) {
     return false;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    if (symbols[i] && strcmp(symbols[i], symbol) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool parser_init_symbol_maps(LR1Parser* parser) {
+  if (!parser || !parser->grammar) {
+    return false;
+  }
+
+  size_t extra_terminals = 0;
+  for (size_t i = 0; i < parser->tokenKindCount; ++i) {
+    if (!parser->tokenKindStr || !parser->tokenKindStr[i]) {
+      continue;
+    }
+    const char* token_name = parser->tokenKindStr[i];
+    if (string_vec_contains(&parser->grammar->terminals, token_name)) {
+      continue;
+    }
+    bool already_counted = false;
+    for (size_t j = 0; j < i; ++j) {
+      if (parser->tokenKindStr && parser->tokenKindStr[j] &&
+          strcmp(parser->tokenKindStr[j], token_name) == 0) {
+        already_counted = true;
+        break;
+      }
+    }
+    if (!already_counted) {
+      extra_terminals++;
+    }
+  }
+
+  parser->terminal_count =
+      parser->grammar->terminals.size + extra_terminals + 1;
+  parser->nonterminal_count = parser->grammar->nonterminals.size;
+
+  parser->terminal_symbols = calloc(parser->terminal_count, sizeof(char*));
+  parser->nonterminal_symbols =
+      calloc(parser->nonterminal_count, sizeof(char*));
+  if ((parser->terminal_count > 0 && !parser->terminal_symbols) ||
+      (parser->nonterminal_count > 0 && !parser->nonterminal_symbols)) {
+    return false;
+  }
+
+  size_t terminal_write_index = 0;
+  for (size_t i = 0; i < parser->grammar->terminals.size; ++i) {
+    parser->terminal_symbols[terminal_write_index++] =
+        parser->grammar->terminals.items[i];
+  }
+  for (size_t i = 0; i < parser->tokenKindCount; ++i) {
+    if (!parser->tokenKindStr || !parser->tokenKindStr[i]) {
+      continue;
+    }
+    const char* token_name = parser->tokenKindStr[i];
+    if (symbol_array_contains(parser->terminal_symbols, terminal_write_index,
+                              token_name)) {
+      continue;
+    }
+    parser->terminal_symbols[terminal_write_index++] = token_name;
+  }
+  parser->terminal_symbols[terminal_write_index++] = kEndMarker;
+  if (terminal_write_index != parser->terminal_count) {
+    return false;
+  }
+
+  for (size_t i = 0; i < parser->grammar->nonterminals.size; ++i) {
+    parser->nonterminal_symbols[i] = parser->grammar->nonterminals.items[i];
+  }
+
+  if (parser->tokenKindCount > 0) {
+    parser->token_kind_to_terminal =
+        malloc(parser->tokenKindCount * sizeof(ptrdiff_t));
+    if (!parser->token_kind_to_terminal) {
+      return false;
+    }
+    for (size_t i = 0; i < parser->tokenKindCount; ++i) {
+      parser->token_kind_to_terminal[i] = -1;
+      if (!parser->tokenKindStr || !parser->tokenKindStr[i]) {
+        continue;
+      }
+      parser->token_kind_to_terminal[i] =
+          parser_terminal_id(parser, parser->tokenKindStr[i]);
+    }
+  }
+
+  parser->rule_nonterminal_ids =
+      malloc(parser->grammar->rules.size * sizeof(ptrdiff_t));
+  if (parser->grammar->rules.size > 0 && !parser->rule_nonterminal_ids) {
+    return false;
+  }
+  for (size_t i = 0; i < parser->grammar->rules.size; ++i) {
+    Rule* rule = parser->grammar->rules.items[i];
+    ptrdiff_t id = parser_nonterminal_id(parser, rule->left);
+    if (id < 0) {
+      return false;
+    }
+    parser->rule_nonterminal_ids[i] = id;
   }
   return true;
 }
 
-static GoToNode* goto_row_find(PtrVec* row, const char* symbol) {
-  if (!row) {
-    return NULL;
+static bool parser_alloc_tables(LR1Parser* parser) {
+  if (!parser) {
+    return false;
   }
-  for (size_t i = 0; i < row->size; ++i) {
-    GoToNode* node = row->items[i];
-    if (strcmp(node->symbol, symbol) == 0) {
-      return node;
+  parser->state_count = parser->collection.size;
+
+  size_t goto_cells = 0;
+  size_t action_cells = 0;
+  if (!safe_mul(parser->state_count, parser->nonterminal_count, &goto_cells) ||
+      !safe_mul(parser->state_count, parser->terminal_count, &action_cells)) {
+    return false;
+  }
+
+  parser->goto_table = malloc(goto_cells * sizeof(ptrdiff_t));
+  parser->action_table = calloc(action_cells, sizeof(ActionEntry));
+  parser->action_present = calloc(action_cells, sizeof(unsigned char));
+  if ((goto_cells > 0 && !parser->goto_table) ||
+      (action_cells > 0 &&
+       (!parser->action_table || !parser->action_present))) {
+    return false;
+  }
+  for (size_t i = 0; i < goto_cells; ++i) {
+    parser->goto_table[i] = -1;
+  }
+  return true;
+}
+
+static const char* action_type_name(ActionType type) {
+  switch (type) {
+    case ACTION_ACCEPT:
+      return "accept";
+    case ACTION_SHIFT:
+      return "shift";
+    case ACTION_REDUCE:
+      return "reduce";
+    default:
+      return "unknown";
+  }
+}
+
+static void print_rule(FILE* stream, const Rule* rule) {
+  if (!stream || !rule) {
+    return;
+  }
+  fprintf(stream, "%s ->", rule->left);
+  if (rule_is_epsilon(rule)) {
+    fprintf(stream, " %s", CPARSE_EPSILON);
+    return;
+  }
+  for (size_t i = 0; i < rule->right.size; ++i) {
+    fprintf(stream, " %s", rule->right.items[i]);
+  }
+}
+
+static void print_action(FILE* stream, const LR1Parser* parser,
+                         const Action* action) {
+  if (!stream || !action) {
+    return;
+  }
+  if (action->type == ACTION_SHIFT) {
+    fprintf(stream, "%s -> state %zu", action_type_name(action->type),
+            action->operand);
+    return;
+  }
+  if (action->type == ACTION_REDUCE) {
+    fprintf(stream, "%s -> rule %zu (", action_type_name(action->type),
+            action->operand);
+    if (parser && parser->grammar &&
+        action->operand < parser->grammar->rules.size) {
+      print_rule(stream, parser->grammar->rules.items[action->operand]);
+    } else {
+      fprintf(stream, "invalid rule");
+    }
+    fprintf(stream, ")");
+    return;
+  }
+  fprintf(stream, "%s", action_type_name(action->type));
+}
+
+static void print_lr_item(FILE* stream, const LR1Item* item) {
+  if (!stream || !item || !item->rule) {
+    return;
+  }
+  fprintf(stream, "%s -> ", item->rule->left);
+  size_t rhs_len = rule_symbol_count(item->rule);
+  if (rhs_len == 0) {
+    if (item->dot == 0) {
+      fprintf(stream, "• ");
+    }
+    fprintf(stream, "%s", CPARSE_EPSILON);
+    if (item->dot > 0) {
+      fprintf(stream, " •");
+    }
+  } else {
+    for (size_t i = 0; i < rhs_len; ++i) {
+      if (i == item->dot) {
+        fprintf(stream, "• ");
+      }
+      fprintf(stream, "%s ", item->rule->right.items[i]);
+    }
+    if (item->dot >= rhs_len) {
+      fprintf(stream, "•");
     }
   }
-  return NULL;
+  fprintf(stream, ", lookahead={");
+  for (size_t i = 0; i < item->lookahead.size; ++i) {
+    if (i > 0) {
+      fprintf(stream, ", ");
+    }
+    fprintf(stream, "%s", item->lookahead.items[i]);
+  }
+  fprintf(stream, "}");
+}
+
+static bool item_matches_conflict_terminal(const LR1Item* item,
+                                           const char* terminal) {
+  if (!item || !terminal) {
+    return false;
+  }
+  size_t rhs_len = rule_symbol_count(item->rule);
+  if (item->dot < rhs_len &&
+      strcmp(item->rule->right.items[item->dot], terminal) == 0) {
+    return true;
+  }
+  if (item->dot >= rhs_len && string_vec_contains(&item->lookahead, terminal)) {
+    return true;
+  }
+  return false;
+}
+
+static void print_conflict_items(FILE* stream, const LR1State* state,
+                                 const char* terminal, bool matching_only) {
+  if (!stream || !state) {
+    return;
+  }
+  for (size_t i = 0; i < state->items.size; ++i) {
+    LR1Item* item = state->items.items[i];
+    if (matching_only && !item_matches_conflict_terminal(item, terminal)) {
+      continue;
+    }
+    fprintf(stream, "    - ");
+    print_lr_item(stream, item);
+    fprintf(stream, "\n");
+  }
+}
+
+static void print_lr_conflict(const LR1Parser* parser, size_t state,
+                              const char* terminal, const Action* existing,
+                              const Action* incoming) {
+  if (!parser || state >= parser->collection.size) {
+    return;
+  }
+  LR1State* lr_state = parser->collection.items[state];
+  fprintf(stderr, "LR conflict {\n");
+  fprintf(stderr, "  state: %zu\n", state);
+  fprintf(stderr, "  terminal: %s\n", terminal ? terminal : "(null)");
+  fprintf(stderr, "  existing_action: ");
+  print_action(stderr, parser, existing);
+  fprintf(stderr, "\n");
+  fprintf(stderr, "  incoming_action: ");
+  print_action(stderr, parser, incoming);
+  fprintf(stderr, "\n");
+  fprintf(stderr, "  conflict_items:\n");
+  bool has_matching = false;
+  for (size_t i = 0; i < lr_state->items.size; ++i) {
+    LR1Item* item = lr_state->items.items[i];
+    if (item_matches_conflict_terminal(item, terminal)) {
+      has_matching = true;
+      break;
+    }
+  }
+  print_conflict_items(stderr, lr_state, terminal, has_matching);
+  fprintf(stderr, "}\n");
+}
+
+static bool add_action(LR1Parser* parser, size_t state, const char* terminal,
+                       ActionType type, size_t operand) {
+  if (!parser || state >= parser->state_count) {
+    return false;
+  }
+  ptrdiff_t terminal_id = parser_terminal_id(parser, terminal);
+  if (terminal_id < 0) {
+    return false;
+  }
+
+  size_t index = action_table_index(parser, state, (size_t)terminal_id);
+  Action incoming = {.type = type, .operand = operand};
+  if (parser->action_present[index]) {
+    ActionEntry* existing = &parser->action_table[index];
+    if (existing->action.type != incoming.type ||
+        existing->action.operand != incoming.operand) {
+      print_lr_conflict(parser, state, terminal, &existing->action, &incoming);
+      return false;
+    }
+    return true;
+  }
+
+  parser->action_present[index] = 1;
+  parser->action_table[index].terminal = parser->terminal_symbols[terminal_id];
+  parser->action_table[index].action = incoming;
+  return true;
 }
 
 static bool add_goto(LR1Parser* parser, size_t state, const char* symbol,
                      size_t target) {
-  PtrVec* row = ensure_row(&parser->goto_table, state);
-  if (!row) {
+  if (!parser || state >= parser->state_count) {
     return false;
   }
-  if (goto_row_find(row, symbol)) {
-    return true;
-  }
-  GoToNode* node = goto_node_create(symbol, target);
-  if (!node) {
+  ptrdiff_t nonterminal_id = parser_nonterminal_id(parser, symbol);
+  if (nonterminal_id < 0) {
     return false;
   }
-  if (!ptr_vec_push(row, node)) {
-    goto_node_destroy(node);
+  size_t index = goto_table_index(parser, state, (size_t)nonterminal_id);
+  if (parser->goto_table[index] >= 0 &&
+      parser->goto_table[index] != (ptrdiff_t)target) {
     return false;
   }
+  parser->goto_table[index] = (ptrdiff_t)target;
   return true;
 }
 
@@ -857,16 +1114,19 @@ static bool build_lalr_collection(LR1Parser* parser) {
   return true;
 }
 
-static ssize_t grammar_rule_index(const Grammar* grammar, const Rule* rule) {
+static ptrdiff_t grammar_rule_index(const Grammar* grammar, const Rule* rule) {
   for (size_t i = 0; i < grammar->rules.size; ++i) {
     if (grammar->rules.items[i] == rule) {
-      return (ssize_t)i;
+      return (ptrdiff_t)i;
     }
   }
   return -1;
 }
 
 static bool build_tables(LR1Parser* parser) {
+  if (!parser_alloc_tables(parser)) {
+    return false;
+  }
   for (size_t i = 0; i < parser->collection.size; ++i) {
     LR1State* state = parser->collection.items[i];
     for (size_t t = 0; t < state->transitions.size; ++t) {
@@ -895,7 +1155,7 @@ static bool build_tables(LR1Parser* parser) {
         }
         continue;
       }
-      ssize_t rule_index = grammar_rule_index(parser->grammar, item->rule);
+      ptrdiff_t rule_index = grammar_rule_index(parser->grammar, item->rule);
       if (rule_index < 0) {
         return false;
       }
@@ -949,25 +1209,25 @@ LALR1Parser* cparseCreateLALR1Parser(Grammar* grammar, clexLexer* lexer,
 }
 
 static ActionEntry* parser_get_action(const LR1Parser* parser, size_t state,
-                                      const char* terminal) {
-  if (state >= parser->action_table.size) {
+                                      size_t terminal_id) {
+  if (!parser || state >= parser->state_count ||
+      terminal_id >= parser->terminal_count) {
     return NULL;
   }
-  PtrVec* row = parser->action_table.items[state];
-  return action_row_find(row, terminal);
+  size_t index = action_table_index(parser, state, terminal_id);
+  if (!parser->action_present[index]) {
+    return NULL;
+  }
+  return &parser->action_table[index];
 }
 
-static ssize_t parser_goto_state(const LR1Parser* parser, size_t state,
-                                 const char* symbol) {
-  if (state >= parser->goto_table.size) {
+static ptrdiff_t parser_goto_state(const LR1Parser* parser, size_t state,
+                                   size_t nonterminal_id) {
+  if (!parser || state >= parser->state_count ||
+      nonterminal_id >= parser->nonterminal_count) {
     return -1;
   }
-  PtrVec* row = parser->goto_table.items[state];
-  GoToNode* node = goto_row_find(row, symbol);
-  if (!node) {
-    return -1;
-  }
-  return (ssize_t)node->state;
+  return parser->goto_table[goto_table_index(parser, state, nonterminal_id)];
 }
 
 typedef struct {
@@ -1189,23 +1449,28 @@ static cparseStatus accept_or_parse(LR1Parser* parser, const char* input,
     lex_next = true;
 
     const char* terminal = NULL;
+    size_t terminal_id = 0;
     if (token.kind == CLEX_TOKEN_EOF) {
       terminal = kEndMarker;
+      terminal_id = parser->terminal_count - 1;
     } else if (token.kind >= 0) {
-      if (!parser->tokenKindStr ||
-          (size_t)token.kind >= parser->tokenKindCount) {
+      if ((size_t)token.kind >= parser->tokenKindCount ||
+          !parser->token_kind_to_terminal) {
         status = parser_set_error(parser, CPARSE_STATUS_INVALID_TOKEN_KIND,
                                   stack_top(&state_stack), token.span.start,
                                   token.kind, token.lexeme, true);
         break;
       }
-      terminal = parser->tokenKindStr[token.kind];
-      if (!terminal) {
+      ptrdiff_t mapped_terminal_id = parser->token_kind_to_terminal[token.kind];
+      if (mapped_terminal_id < 0 ||
+          (size_t)mapped_terminal_id >= parser->terminal_count) {
         status = parser_set_error(parser, CPARSE_STATUS_INVALID_TOKEN_KIND,
                                   stack_top(&state_stack), token.span.start,
                                   token.kind, token.lexeme, true);
         break;
       }
+      terminal_id = (size_t)mapped_terminal_id;
+      terminal = parser->terminal_symbols[terminal_id];
     } else {
       status = parser_set_error(parser, CPARSE_STATUS_INTERNAL_ERROR,
                                 stack_top(&state_stack), token.span.start,
@@ -1214,7 +1479,7 @@ static cparseStatus accept_or_parse(LR1Parser* parser, const char* input,
     }
 
     size_t current_state = stack_top(&state_stack);
-    ActionEntry* action = parser_get_action(parser, current_state, terminal);
+    ActionEntry* action = parser_get_action(parser, current_state, terminal_id);
     if (!action) {
       const char* offending =
           token.kind == CLEX_TOKEN_EOF ? "EOF" : token.lexeme;
@@ -1258,6 +1523,12 @@ static cparseStatus accept_or_parse(LR1Parser* parser, const char* input,
         free_token(&token);
       }
     } else if (action->action.type == ACTION_REDUCE) {
+      if (action->action.operand >= parser->grammar->rules.size) {
+        status = parser_set_error(parser, CPARSE_STATUS_INTERNAL_ERROR,
+                                  current_state, token.span.start, token.kind,
+                                  token.lexeme, false);
+        break;
+      }
       Rule* rule = parser->grammar->rules.items[action->action.operand];
       size_t rhs_len = rule_symbol_count(rule);
       PtrVec children;
@@ -1286,8 +1557,19 @@ static cparseStatus accept_or_parse(LR1Parser* parser, const char* input,
         break;
       }
       size_t next_state_index = stack_top(&state_stack);
-      ssize_t goto_state_value =
-          parser_goto_state(parser, next_state_index, rule->left);
+      ptrdiff_t nonterminal_id =
+          parser->rule_nonterminal_ids[action->action.operand];
+      if (nonterminal_id < 0) {
+        if (build_tree) {
+          free_children(&children);
+        }
+        status = parser_set_error(parser, CPARSE_STATUS_INTERNAL_ERROR,
+                                  current_state, token.span.start, token.kind,
+                                  token.lexeme, false);
+        break;
+      }
+      ptrdiff_t goto_state_value =
+          parser_goto_state(parser, next_state_index, (size_t)nonterminal_id);
       if (goto_state_value < 0) {
         if (build_tree) {
           free_children(&children);
@@ -1509,36 +1791,35 @@ char* getLR1ParserAsString(LR1Parser* parser) {
     }
   }
   sb_append(&sb, "Goto table:\n");
-  for (size_t i = 0; i < parser->goto_table.size; ++i) {
-    PtrVec* row = parser->goto_table.items[i];
-    if (!row || row->size == 0) {
-      continue;
-    }
-    for (size_t j = 0; j < row->size; ++j) {
-      GoToNode* node = row->items[j];
+  for (size_t i = 0; i < parser->state_count; ++i) {
+    for (size_t j = 0; j < parser->nonterminal_count; ++j) {
+      ptrdiff_t target = parser->goto_table[goto_table_index(parser, i, j)];
+      if (target < 0) {
+        continue;
+      }
       sb_append(&sb, "  ");
       sb_append_int(&sb, i);
       sb_append(&sb, " ");
-      sb_append(&sb, node->symbol);
+      sb_append(&sb, parser->nonterminal_symbols[j]);
       sb_append(&sb, " -> ");
-      sb_append_int(&sb, node->state);
+      sb_append_int(&sb, (size_t)target);
       sb_append(&sb, "\n");
     }
   }
   sb_append(&sb, "Action table:\n");
-  for (size_t i = 0; i < parser->action_table.size; ++i) {
-    PtrVec* row = parser->action_table.items[i];
-    if (!row || row->size == 0) {
-      continue;
-    }
-    for (size_t j = 0; j < row->size; ++j) {
-      ActionEntry* entry = row->items[j];
+  for (size_t i = 0; i < parser->state_count; ++i) {
+    for (size_t j = 0; j < parser->terminal_count; ++j) {
+      size_t index = action_table_index(parser, i, j);
+      if (!parser->action_present[index]) {
+        continue;
+      }
+      ActionEntry* entry = &parser->action_table[index];
       sb_append(&sb, "  ");
       sb_append_int(&sb, i);
       sb_append(&sb, " ");
       sb_append(&sb, entry->terminal);
       sb_append(&sb, " -> ");
-      sb_append_int(&sb, entry->action.type);
+      sb_append_int(&sb, (size_t)entry->action.type);
       sb_append(&sb, " ");
       sb_append_int(&sb, entry->action.operand);
       sb_append(&sb, "\n");
