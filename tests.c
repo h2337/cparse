@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "clex/clex.h"
@@ -24,6 +25,17 @@ static int failures = 0;
               __FILE__, __LINE__, msg, (actual), (expected));         \
       failures++;                                                     \
     }                                                                 \
+  } while (0)
+
+#define EXPECT_STATUS(actual, expected, msg)                             \
+  do {                                                                   \
+    cparseStatus _actual = (actual);                                     \
+    cparseStatus _expected = (expected);                                 \
+    if (_actual != _expected) {                                          \
+      fprintf(stderr, "[FAIL] %s:%d: %s (got status %d, expected %d)\n", \
+              __FILE__, __LINE__, msg, (int)_actual, (int)_expected);    \
+      failures++;                                                        \
+    }                                                                    \
   } while (0)
 
 typedef struct {
@@ -69,17 +81,32 @@ static clexLexer* create_lexer(const TokenSpec* specs, size_t count) {
     if (!specs[i].pattern) {
       continue;
     }
-    bool ok = clexRegisterKind(lexer, specs[i].pattern, specs[i].kind);
+    clexStatus status =
+        clexRegisterKind(lexer, specs[i].pattern, specs[i].kind);
     char buffer[128];
     snprintf(buffer, sizeof(buffer), "failed to register token pattern %s",
              specs[i].label);
-    EXPECT_TRUE(ok, buffer);
-    if (!ok) {
+    EXPECT_TRUE(status == CLEX_STATUS_OK, buffer);
+    if (status != CLEX_STATUS_OK) {
       clexLexerDestroy(lexer);
       return NULL;
     }
   }
   return lexer;
+}
+
+static bool parser_accepts(LR1Parser* parser, const char* input) {
+  return cparseAccept(parser, input) == CPARSE_STATUS_OK;
+}
+
+static ParseTreeNode* parser_parse_tree(LR1Parser* parser, const char* input) {
+  ParseTreeNode* tree = NULL;
+  cparseStatus status = cparse(parser, input, &tree);
+  if (status != CPARSE_STATUS_OK) {
+    cparseFreeParseTree(tree);
+    return NULL;
+  }
+  return tree;
 }
 
 static clexLexer* create_basic_lexer(void) {
@@ -114,10 +141,11 @@ static void test_lr1_accept_and_tree(void) {
     clexLexerDestroy(lexer);
     return;
   }
-  EXPECT_TRUE(cparseAccept(parser, "return foo;"),
+  EXPECT_TRUE(parser_accepts(parser, "return foo;"),
               "expected parser to accept valid input");
-  EXPECT_TRUE(!cparseAccept(parser, "return"), "parser accepted invalid input");
-  ParseTreeNode* tree = cparse(parser, "return foo;");
+  EXPECT_TRUE(!parser_accepts(parser, "return"),
+              "parser accepted invalid input");
+  ParseTreeNode* tree = parser_parse_tree(parser, "return foo;");
   EXPECT_TRUE(tree != NULL, "parse tree is NULL");
   if (tree) {
     EXPECT_STREQ(tree->value, "S", "root value mismatch");
@@ -149,12 +177,16 @@ static void test_parse_tree_terminals(void) {
     clexLexerDestroy(lexer);
     return;
   }
-  ParseTreeNode* tree = cparse(parser, "return result;");
+  ParseTreeNode* tree = parser_parse_tree(parser, "return result;");
   EXPECT_TRUE(tree != NULL, "expected parse tree for valid input");
   if (tree && tree->children.size == 3) {
     ParseTreeNode* node_a = tree->children.items[0];
     ParseTreeNode* ident = tree->children.items[1];
     ParseTreeNode* semi = tree->children.items[2];
+    EXPECT_TRUE(tree->span.start.line == 1, "tree start line mismatch");
+    EXPECT_TRUE(tree->span.start.column == 1, "tree start column mismatch");
+    EXPECT_TRUE(tree->span.end.line == 1, "tree end line mismatch");
+    EXPECT_TRUE(tree->span.end.column == 15, "tree end column mismatch");
     EXPECT_STREQ(node_a->value, "A", "first child should be nonterminal A");
     EXPECT_TRUE(node_a->children.size == 1,
                 "A should expand to a single RETURN token");
@@ -163,11 +195,23 @@ static void test_parse_tree_terminals(void) {
       EXPECT_STREQ(return_tok->value, "RETURN", "terminal mismatch for RETURN");
       EXPECT_STREQ(return_tok->token.lexeme, "return",
                    "RETURN lexeme mismatch");
+      EXPECT_TRUE(return_tok->token.span.start.offset == 0,
+                  "RETURN start offset mismatch");
+      EXPECT_TRUE(return_tok->token.span.start.column == 1,
+                  "RETURN start column mismatch");
     }
     EXPECT_STREQ(ident->value, "IDENTIFIER", "identifier node name mismatch");
     EXPECT_STREQ(ident->token.lexeme, "result", "IDENTIFIER lexeme mismatch");
+    EXPECT_TRUE(ident->token.span.start.offset == 7,
+                "IDENTIFIER start offset mismatch");
+    EXPECT_TRUE(ident->token.span.start.column == 8,
+                "IDENTIFIER start column mismatch");
     EXPECT_STREQ(semi->value, "SEMICOL", "semicolon node name mismatch");
     EXPECT_STREQ(semi->token.lexeme, ";", "semicolon lexeme mismatch");
+    EXPECT_TRUE(semi->token.span.start.offset == 13,
+                "SEMICOL start offset mismatch");
+    EXPECT_TRUE(semi->token.span.start.column == 14,
+                "SEMICOL start column mismatch");
   }
   cparseFreeParseTree(tree);
   cparseFreeParser(parser);
@@ -197,7 +241,7 @@ static void test_lalr_accept(void) {
     clexLexerDestroy(lexer);
     return;
   }
-  EXPECT_TRUE(cparseAccept(parser, "return bar;"),
+  EXPECT_TRUE(parser_accepts(parser, "return bar;"),
               "LALR parser rejected valid input");
   cparseFreeParser(parser);
   cparseFreeGrammar(grammar);
@@ -224,10 +268,23 @@ static void test_parser_rejects_invalid_input(void) {
     clexLexerDestroy(lexer);
     return;
   }
-  EXPECT_TRUE(!cparseAccept(parser, "return ;"),
-              "parser accepted malformed input");
-  ParseTreeNode* tree = cparse(parser, "return ;");
-  EXPECT_TRUE(tree == NULL, "cparse should return NULL for malformed input");
+  cparseStatus status = cparseAccept(parser, "return ;");
+  EXPECT_STATUS(status, CPARSE_STATUS_UNEXPECTED_TOKEN,
+                "malformed input should produce unexpected-token status");
+  const cparseError* error = cparseGetLastError(parser);
+  EXPECT_TRUE(error != NULL, "missing parser error for malformed input");
+  if (error) {
+    EXPECT_TRUE(error->position.line == 1, "unexpected error line");
+    EXPECT_TRUE(error->position.column == 8, "unexpected error column");
+    EXPECT_STREQ(error->offending_lexeme, ";", "offending lexeme mismatch");
+    EXPECT_TRUE(error->expected_tokens.size > 0, "expected token set is empty");
+  }
+  ParseTreeNode* tree = NULL;
+  status = cparse(parser, "return ;", &tree);
+  EXPECT_STATUS(status, CPARSE_STATUS_UNEXPECTED_TOKEN,
+                "cparse() should fail with unexpected token");
+  EXPECT_TRUE(tree == NULL,
+              "cparse should not return a tree for malformed input");
   cparseFreeParseTree(tree);
   cparseFreeParser(parser);
   cparseFreeGrammar(grammar);
@@ -254,13 +311,27 @@ static void test_parser_rejects_lexical_errors(void) {
     clexLexerDestroy(lexer);
     return;
   }
-  EXPECT_TRUE(cparseAccept(parser, "value"),
+  EXPECT_TRUE(parser_accepts(parser, "value"),
               "parser rejected valid identifier");
-  EXPECT_TRUE(!cparseAccept(parser, "value$tail"),
-              "parser accepted input with lexical error");
-  ParseTreeNode* tree = cparse(parser, "value$tail");
-  EXPECT_TRUE(tree == NULL,
-              "cparse should return NULL when lexical errors are present");
+  cparseStatus status = cparseAccept(parser, "value$tail");
+  EXPECT_STATUS(status, CPARSE_STATUS_LEXICAL_ERROR,
+                "lexical failure should bubble up as lexer error");
+  const cparseError* error = cparseGetLastError(parser);
+  EXPECT_TRUE(error != NULL, "missing parser error for lexical failure");
+  if (error) {
+    EXPECT_TRUE(error->position.line == 1, "lexer error line mismatch");
+    EXPECT_TRUE(error->position.column == 6, "lexer error column mismatch");
+    EXPECT_STREQ(error->offending_lexeme, "$",
+                 "lexer offending lexeme mismatch");
+    EXPECT_TRUE(error->expected_tokens.size > 0, "expected token set is empty");
+  }
+  ParseTreeNode* tree = NULL;
+  status = cparse(parser, "value$tail", &tree);
+  EXPECT_STATUS(status, CPARSE_STATUS_LEXICAL_ERROR,
+                "cparse() should fail on lexical error");
+  EXPECT_TRUE(
+      tree == NULL,
+      "cparse should not return a tree when lexical errors are present");
   cparseFreeParseTree(tree);
   cparseFreeParser(parser);
   cparseFreeGrammar(grammar);
@@ -313,9 +384,9 @@ static void test_epsilon_grammar(void) {
     clexLexerDestroy(lexer);
     return;
   }
-  EXPECT_TRUE(cparseAccept(parser, ""),
+  EXPECT_TRUE(parser_accepts(parser, ""),
               "epsilon grammar should accept empty string");
-  ParseTreeNode* tree = cparse(parser, "");
+  ParseTreeNode* tree = parser_parse_tree(parser, "");
   EXPECT_TRUE(tree != NULL, "parse tree should be produced for empty input");
   if (tree) {
     EXPECT_STREQ(tree->value, "S", "epsilon grammar root mismatch");
@@ -368,11 +439,11 @@ static void test_expression_grammar(void) {
     clexLexerDestroy(lexer);
     return;
   }
-  EXPECT_TRUE(cparseAccept(parser, "2 + 3 * 4"),
+  EXPECT_TRUE(parser_accepts(parser, "2 + 3 * 4"),
               "expression parser rejected valid input");
-  EXPECT_TRUE(!cparseAccept(parser, "2 + * 3"),
+  EXPECT_TRUE(!parser_accepts(parser, "2 + * 3"),
               "expression parser accepted invalid input");
-  ParseTreeNode* tree = cparse(parser, "8 + 5 * 2");
+  ParseTreeNode* tree = parser_parse_tree(parser, "8 + 5 * 2");
   EXPECT_TRUE(tree != NULL, "expression parser failed to produce a tree");
   if (tree) {
     EXPECT_STREQ(tree->value, "Expr", "expression root mismatch");
@@ -474,28 +545,31 @@ static void test_statement_grammar(void) {
                            TOK_SEMICOL,    TOK_RETURN,     TOK_NUMBER,
                            TOK_SEMICOL,    TOK_RBRACE,     -1};
   clexReset(lexer, program);
+  clexToken tok;
+  clexTokenInit(&tok);
   for (size_t i = 0; expected_tokens[i] >= 0; ++i) {
-    clexToken tok = clex(lexer);
+    clexStatus lex_status = clex(lexer, &tok);
     char message[128];
     snprintf(message, sizeof(message), "unexpected token kind at position %zu",
              i);
+    EXPECT_TRUE(lex_status == CLEX_STATUS_OK, "lexer returned non-OK status");
     EXPECT_TRUE(tok.kind == expected_tokens[i], message);
-    free(tok.lexeme);
     if (tok.kind != expected_tokens[i]) {
       break;
     }
   }
+  clexTokenClear(&tok);
 
   clexReset(lexer, program);
 
-  EXPECT_TRUE(cparseAccept(parser, program),
+  EXPECT_TRUE(parser_accepts(parser, program),
               "statement grammar rejected valid program");
 
   const char* bad_program = "{ return 42 a = 1 ; }";
-  EXPECT_TRUE(!cparseAccept(parser, bad_program),
+  EXPECT_TRUE(!parser_accepts(parser, bad_program),
               "statement grammar accepted invalid program");
 
-  ParseTreeNode* tree = cparse(parser, program);
+  ParseTreeNode* tree = parser_parse_tree(parser, program);
   EXPECT_TRUE(tree != NULL, "statement grammar failed to produce parse tree");
   if (tree) {
     EXPECT_STREQ(tree->value, "Program", "statement grammar root mismatch");

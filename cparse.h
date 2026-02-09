@@ -63,6 +63,25 @@ typedef struct ActionEntry {
   Action action;
 } ActionEntry;
 
+typedef enum cparseStatus {
+  CPARSE_STATUS_OK = 0,
+  CPARSE_STATUS_INVALID_ARGUMENT,
+  CPARSE_STATUS_OUT_OF_MEMORY,
+  CPARSE_STATUS_LEXICAL_ERROR,
+  CPARSE_STATUS_UNEXPECTED_TOKEN,
+  CPARSE_STATUS_INVALID_TOKEN_KIND,
+  CPARSE_STATUS_INTERNAL_ERROR
+} cparseStatus;
+
+typedef struct cparseError {
+  cparseStatus status;
+  clexSourcePosition position;
+  char* offending_lexeme;
+  StringVec expected_tokens; /* owned strings */
+  int offending_token_kind;
+  size_t parser_state;
+} cparseError;
+
 typedef struct LR1Parser {
   Grammar* grammar;
   clexLexer* lexer;    /* not owned */
@@ -71,6 +90,7 @@ typedef struct LR1Parser {
   PtrVec action_table; /* PtrVec* where PtrVec holds ActionEntry* */
   const char* const* tokenKindStr;
   size_t tokenKindCount;
+  cparseError last_error;
 } LR1Parser;
 
 typedef LR1Parser LALR1Parser;
@@ -80,6 +100,7 @@ typedef struct ParseTreeNode ParseTreeNode;
 typedef struct ParseTreeNode {
   char* value;
   clexToken token;
+  clexSourceSpan span;
   PtrVec children; /* ParseTreeNode* */
 } ParseTreeNode;
 
@@ -90,8 +111,11 @@ LR1Parser* cparseCreateLR1Parser(Grammar* grammar, clexLexer* lexer,
 LALR1Parser* cparseCreateLALR1Parser(Grammar* grammar, clexLexer* lexer,
                                      const char* const* tokenKindStr,
                                      size_t tokenKindCount);
-bool cparseAccept(LR1Parser* parser, const char* input);
-ParseTreeNode* cparse(LR1Parser* parser, const char* input);
+cparseStatus cparseAccept(LR1Parser* parser, const char* input);
+cparseStatus cparse(LR1Parser* parser, const char* input,
+                    ParseTreeNode** out_tree);
+const cparseError* cparseGetLastError(const LR1Parser* parser);
+void cparseClearError(cparseError* error);
 void cparseFreeParseTree(ParseTreeNode* node);
 void cparseFreeParser(LR1Parser* parser);
 void cparseFreeGrammar(Grammar* grammar);

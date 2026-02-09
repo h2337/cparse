@@ -11,12 +11,96 @@
 
 static const char* kEndMarker = "$";
 
+static clexSourcePosition make_position(size_t offset, size_t line,
+                                        size_t column) {
+  clexSourcePosition position;
+  position.offset = offset;
+  position.line = line;
+  position.column = column;
+  return position;
+}
+
+static void cparse_error_init(cparseError* error) {
+  if (!error) {
+    return;
+  }
+  error->status = CPARSE_STATUS_OK;
+  error->position = make_position(0, 1, 1);
+  error->offending_lexeme = NULL;
+  string_vec_init(&error->expected_tokens);
+  error->offending_token_kind = CLEX_TOKEN_EOF;
+  error->parser_state = 0;
+}
+
+void cparseClearError(cparseError* error) {
+  if (!error) {
+    return;
+  }
+  free(error->offending_lexeme);
+  error->offending_lexeme = NULL;
+  string_vec_free(&error->expected_tokens, true);
+  string_vec_init(&error->expected_tokens);
+  error->status = CPARSE_STATUS_OK;
+  error->position = make_position(0, 1, 1);
+  error->offending_token_kind = CLEX_TOKEN_EOF;
+  error->parser_state = 0;
+}
+
+const cparseError* cparseGetLastError(const LR1Parser* parser) {
+  if (!parser) {
+    return NULL;
+  }
+  return &parser->last_error;
+}
+
+static bool cparse_error_set_offending_lexeme(cparseError* error,
+                                              const char* lexeme) {
+  if (!error) {
+    return true;
+  }
+  free(error->offending_lexeme);
+  error->offending_lexeme = NULL;
+  if (!lexeme) {
+    return true;
+  }
+  error->offending_lexeme = cparse_strdup(lexeme);
+  return error->offending_lexeme != NULL;
+}
+
+static bool cparse_error_add_expected(cparseError* error,
+                                      const char* expected_token) {
+  if (!error || !expected_token) {
+    return true;
+  }
+  return string_vec_push_unique_copy(&error->expected_tokens, expected_token);
+}
+
+static bool cparse_error_fill_expected_for_state(const LR1Parser* parser,
+                                                 size_t state,
+                                                 cparseError* error) {
+  if (!parser || !error || state >= parser->action_table.size) {
+    return true;
+  }
+  PtrVec* row = parser->action_table.items[state];
+  if (!row) {
+    return true;
+  }
+  for (size_t i = 0; i < row->size; ++i) {
+    ActionEntry* entry = row->items[i];
+    const char* expected =
+        strcmp(entry->terminal, kEndMarker) == 0 ? "EOF" : entry->terminal;
+    if (!cparse_error_add_expected(error, expected)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static void free_token(clexToken* token) {
   if (!token) {
     return;
   }
-  free(token->lexeme);
-  token->lexeme = NULL;
+  clexTokenClear(token);
 }
 
 static bool grammar_is_terminal(const Grammar* grammar, const char* symbol) {
@@ -235,6 +319,7 @@ static LR1Parser* parser_create(Grammar* grammar, clexLexer* lexer,
   ptr_vec_init(&parser->collection);
   ptr_vec_init(&parser->goto_table);
   ptr_vec_init(&parser->action_table);
+  cparse_error_init(&parser->last_error);
   return parser;
 }
 
@@ -259,6 +344,7 @@ void cparseFreeParser(LR1Parser* parser) {
     }
   }
   ptr_vec_free(&parser->action_table, false, NULL);
+  cparseClearError(&parser->last_error);
   free(parser);
 }
 
@@ -963,8 +1049,10 @@ static ParseTreeNode* parse_tree_node_create(const char* value) {
   }
   node->value = (char*)value;
   ptr_vec_init(&node->children);
+  clexTokenInit(&node->token);
   node->token.kind = -1;
-  node->token.lexeme = NULL;
+  node->span.start = make_position(0, 1, 1);
+  node->span.end = make_position(0, 1, 1);
   return node;
 }
 
@@ -975,6 +1063,7 @@ static ParseTreeNode* parse_tree_node_create_with_token(const char* value,
     return NULL;
   }
   node->token = token;
+  node->span = token.span;
   return node;
 }
 
@@ -990,22 +1079,70 @@ void cparseFreeParseTree(ParseTreeNode* node) {
   free(node);
 }
 
-static bool accept_or_parse(LR1Parser* parser, const char* input,
-                            bool build_tree, ParseTreeNode** out_tree,
-                            bool* accepted) {
+static cparseStatus parser_set_error(LR1Parser* parser, cparseStatus status,
+                                     size_t parser_state,
+                                     clexSourcePosition position,
+                                     int offending_token_kind,
+                                     const char* offending_lexeme,
+                                     bool include_expected) {
+  if (!parser) {
+    return status;
+  }
+  cparseClearError(&parser->last_error);
+  parser->last_error.status = status;
+  parser->last_error.position = position;
+  parser->last_error.offending_token_kind = offending_token_kind;
+  parser->last_error.parser_state = parser_state;
+  if (!cparse_error_set_offending_lexeme(&parser->last_error,
+                                         offending_lexeme)) {
+    parser->last_error.status = CPARSE_STATUS_OUT_OF_MEMORY;
+    return CPARSE_STATUS_OUT_OF_MEMORY;
+  }
+  if (include_expected && !cparse_error_fill_expected_for_state(
+                              parser, parser_state, &parser->last_error)) {
+    parser->last_error.status = CPARSE_STATUS_OUT_OF_MEMORY;
+    return CPARSE_STATUS_OUT_OF_MEMORY;
+  }
+  return status;
+}
+
+static void free_children(PtrVec* children) {
+  if (!children) {
+    return;
+  }
+  for (size_t i = 0; i < children->size; ++i) {
+    cparseFreeParseTree(children->items[i]);
+  }
+  ptr_vec_free(children, false, NULL);
+}
+
+static cparseStatus accept_or_parse(LR1Parser* parser, const char* input,
+                                    bool build_tree, ParseTreeNode** out_tree) {
   if (!parser || !parser->lexer) {
-    return false;
+    return CPARSE_STATUS_INVALID_ARGUMENT;
+  }
+  if (build_tree && !out_tree) {
+    return CPARSE_STATUS_INVALID_ARGUMENT;
+  }
+
+  cparseClearError(&parser->last_error);
+  if (out_tree) {
+    *out_tree = NULL;
   }
 
   clexReset(parser->lexer, input);
   bool lex_next = true;
-  clexToken token = {.kind = -1, .lexeme = NULL};
+  clexToken token;
+  clexTokenInit(&token);
+  token.kind = CLEX_TOKEN_EOF;
 
   SizeTStack state_stack;
   stack_init(&state_stack);
   if (!stack_push(&state_stack, 0)) {
     stack_free(&state_stack);
-    return false;
+    return parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY, 0,
+                            make_position(0, 1, 1), CLEX_TOKEN_EOF, NULL,
+                            false);
   }
 
   PtrVec symbol_stack;
@@ -1016,57 +1153,104 @@ static bool accept_or_parse(LR1Parser* parser, const char* input,
     ptr_vec_init(&node_stack);
   }
 
-  bool success = false;
+  cparseStatus status = CPARSE_STATUS_OK;
   while (true) {
     if (lex_next) {
       free_token(&token);
-      token = clex(parser->lexer);
+      clexTokenInit(&token);
+      clexStatus lex_status = clex(parser->lexer, &token);
+      if (lex_status == CLEX_STATUS_EOF) {
+        token.kind = CLEX_TOKEN_EOF;
+      } else if (lex_status == CLEX_STATUS_OK) {
+      } else if (lex_status == CLEX_STATUS_LEXICAL_ERROR) {
+        const clexError* lex_error = clexGetLastError(parser->lexer);
+        clexSourcePosition position =
+            lex_error ? lex_error->position : token.span.start;
+        const char* lexeme = (lex_error && lex_error->offending_lexeme)
+                                 ? lex_error->offending_lexeme
+                                 : token.lexeme;
+        status = parser_set_error(parser, CPARSE_STATUS_LEXICAL_ERROR,
+                                  stack_top(&state_stack), position,
+                                  CLEX_TOKEN_ERROR, lexeme, true);
+        break;
+      } else {
+        const clexError* lex_error = clexGetLastError(parser->lexer);
+        clexSourcePosition position =
+            lex_error ? lex_error->position : token.span.start;
+        const char* lexeme = (lex_error && lex_error->offending_lexeme)
+                                 ? lex_error->offending_lexeme
+                                 : token.lexeme;
+        status = parser_set_error(parser, CPARSE_STATUS_INTERNAL_ERROR,
+                                  stack_top(&state_stack), position, token.kind,
+                                  lexeme, false);
+        break;
+      }
     }
     lex_next = true;
+
     const char* terminal = NULL;
     if (token.kind == CLEX_TOKEN_EOF) {
       terminal = kEndMarker;
-    } else if (token.kind == CLEX_TOKEN_ERROR) {
-      success = false;
-      break;
     } else if (token.kind >= 0) {
       if (!parser->tokenKindStr ||
           (size_t)token.kind >= parser->tokenKindCount) {
-        success = false;
+        status = parser_set_error(parser, CPARSE_STATUS_INVALID_TOKEN_KIND,
+                                  stack_top(&state_stack), token.span.start,
+                                  token.kind, token.lexeme, true);
         break;
       }
       terminal = parser->tokenKindStr[token.kind];
       if (!terminal) {
-        success = false;
+        status = parser_set_error(parser, CPARSE_STATUS_INVALID_TOKEN_KIND,
+                                  stack_top(&state_stack), token.span.start,
+                                  token.kind, token.lexeme, true);
         break;
       }
     } else {
-      success = false;
+      status = parser_set_error(parser, CPARSE_STATUS_INTERNAL_ERROR,
+                                stack_top(&state_stack), token.span.start,
+                                token.kind, token.lexeme, false);
       break;
     }
+
     size_t current_state = stack_top(&state_stack);
     ActionEntry* action = parser_get_action(parser, current_state, terminal);
     if (!action) {
-      success = false;
+      const char* offending =
+          token.kind == CLEX_TOKEN_EOF ? "EOF" : token.lexeme;
+      status = parser_set_error(parser, CPARSE_STATUS_UNEXPECTED_TOKEN,
+                                current_state, token.span.start, token.kind,
+                                offending, true);
       break;
     }
+
     if (action->action.type == ACTION_SHIFT) {
       if (!ptr_vec_push_ptr(&symbol_stack, (void*)terminal)) {
-        success = false;
+        status =
+            parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY, current_state,
+                             token.span.start, token.kind, token.lexeme, false);
         break;
       }
       if (!stack_push(&state_stack, action->action.operand)) {
-        success = false;
+        status =
+            parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY, current_state,
+                             token.span.start, token.kind, token.lexeme, false);
         break;
       }
       if (build_tree) {
         ParseTreeNode* leaf =
             parse_tree_node_create_with_token(terminal, token);
-        if (!leaf || !ptr_vec_push_ptr(&node_stack, leaf)) {
-          if (leaf) {
-            cparseFreeParseTree(leaf);
-          }
-          success = false;
+        if (!leaf) {
+          status = parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY,
+                                    current_state, token.span.start, token.kind,
+                                    token.lexeme, false);
+          break;
+        }
+        if (!ptr_vec_push_ptr(&node_stack, leaf)) {
+          cparseFreeParseTree(leaf);
+          status = parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY,
+                                    current_state, token.span.start, token.kind,
+                                    token.lexeme, false);
           break;
         }
         token.lexeme = NULL;
@@ -1080,80 +1264,109 @@ static bool accept_or_parse(LR1Parser* parser, const char* input,
       if (build_tree) {
         ptr_vec_init(&children);
       }
+      bool reduce_failed = false;
       for (size_t i = 0; i < rhs_len; ++i) {
         ptr_vec_pop_ptr(&symbol_stack);
         stack_pop(&state_stack, NULL);
         if (build_tree) {
           ParseTreeNode* child = ptr_vec_pop_ptr(&node_stack);
-          ptr_vec_push_ptr(&children, child);
+          if (!ptr_vec_push_ptr(&children, child)) {
+            reduce_failed = true;
+            break;
+          }
         }
+      }
+      if (reduce_failed) {
+        if (build_tree) {
+          free_children(&children);
+        }
+        status =
+            parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY, current_state,
+                             token.span.start, token.kind, token.lexeme, false);
+        break;
       }
       size_t next_state_index = stack_top(&state_stack);
       ssize_t goto_state_value =
           parser_goto_state(parser, next_state_index, rule->left);
       if (goto_state_value < 0) {
         if (build_tree) {
-          for (size_t i = 0; i < children.size; ++i) {
-            cparseFreeParseTree(children.items[i]);
-          }
-          ptr_vec_free(&children, false, NULL);
+          free_children(&children);
         }
-        success = false;
+        status = parser_set_error(parser, CPARSE_STATUS_INTERNAL_ERROR,
+                                  current_state, token.span.start, token.kind,
+                                  token.lexeme, false);
         break;
       }
       if (!ptr_vec_push_ptr(&symbol_stack, rule->left)) {
         if (build_tree) {
-          for (size_t i = 0; i < children.size; ++i) {
-            cparseFreeParseTree(children.items[i]);
-          }
-          ptr_vec_free(&children, false, NULL);
+          free_children(&children);
         }
-        success = false;
+        status =
+            parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY, current_state,
+                             token.span.start, token.kind, token.lexeme, false);
         break;
       }
       if (!stack_push(&state_stack, (size_t)goto_state_value)) {
         if (build_tree) {
-          for (size_t i = 0; i < children.size; ++i) {
-            cparseFreeParseTree(children.items[i]);
-          }
-          ptr_vec_free(&children, false, NULL);
+          free_children(&children);
         }
-        success = false;
+        status =
+            parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY, current_state,
+                             token.span.start, token.kind, token.lexeme, false);
         break;
       }
       lex_next = false;
       if (build_tree) {
         ParseTreeNode* parent = parse_tree_node_create(rule->left);
         if (!parent) {
-          for (size_t i = 0; i < children.size; ++i) {
-            cparseFreeParseTree(children.items[i]);
-          }
-          ptr_vec_free(&children, false, NULL);
-          success = false;
+          free_children(&children);
+          status = parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY,
+                                    current_state, token.span.start, token.kind,
+                                    token.lexeme, false);
           break;
         }
         for (size_t i = children.size; i > 0; --i) {
-          ptr_vec_push_ptr(&parent->children, children.items[i - 1]);
+          ParseTreeNode* child = children.items[i - 1];
+          if (!ptr_vec_push_ptr(&parent->children, child)) {
+            cparseFreeParseTree(parent);
+            free_children(&children);
+            status = parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY,
+                                      current_state, token.span.start,
+                                      token.kind, token.lexeme, false);
+            reduce_failed = true;
+            break;
+          }
+          children.items[i - 1] = NULL;
+        }
+        if (reduce_failed) {
+          break;
         }
         ptr_vec_free(&children, false, NULL);
+        if (parent->children.size > 0) {
+          ParseTreeNode* first = parent->children.items[0];
+          ParseTreeNode* last =
+              parent->children.items[parent->children.size - 1];
+          parent->span.start = first->span.start;
+          parent->span.end = last->span.end;
+        } else {
+          parent->span.start = token.span.start;
+          parent->span.end = token.span.start;
+        }
         if (!ptr_vec_push_ptr(&node_stack, parent)) {
           cparseFreeParseTree(parent);
-          success = false;
+          status = parser_set_error(parser, CPARSE_STATUS_OUT_OF_MEMORY,
+                                    current_state, token.span.start, token.kind,
+                                    token.lexeme, false);
           break;
         }
       }
     } else if (action->action.type == ACTION_ACCEPT) {
-      success = true;
+      status = CPARSE_STATUS_OK;
       break;
     }
   }
 
-  bool accepted_value = success;
-  if (accepted) {
-    *accepted = accepted_value;
-  }
-
-  if (!success || !accepted_value) {
+  if (status != CPARSE_STATUS_OK) {
     free_token(&token);
     if (build_tree) {
       while (node_stack.size > 0) {
@@ -1164,7 +1377,7 @@ static bool accept_or_parse(LR1Parser* parser, const char* input,
     }
     ptr_vec_free(&symbol_stack, false, NULL);
     stack_free(&state_stack);
-    return false;
+    return status;
   }
 
   if (build_tree) {
@@ -1180,25 +1393,16 @@ static bool accept_or_parse(LR1Parser* parser, const char* input,
   free_token(&token);
   ptr_vec_free(&symbol_stack, false, NULL);
   stack_free(&state_stack);
-  return true;
+  return CPARSE_STATUS_OK;
 }
 
-bool cparseAccept(LR1Parser* parser, const char* input) {
-  bool accepted = false;
-  if (!accept_or_parse(parser, input, false, NULL, &accepted)) {
-    return false;
-  }
-  return accepted;
+cparseStatus cparseAccept(LR1Parser* parser, const char* input) {
+  return accept_or_parse(parser, input, false, NULL);
 }
 
-ParseTreeNode* cparse(LR1Parser* parser, const char* input) {
-  ParseTreeNode* tree = NULL;
-  bool accepted = false;
-  if (!accept_or_parse(parser, input, true, &tree, &accepted) || !accepted) {
-    cparseFreeParseTree(tree);
-    return NULL;
-  }
-  return tree;
+cparseStatus cparse(LR1Parser* parser, const char* input,
+                    ParseTreeNode** out_tree) {
+  return accept_or_parse(parser, input, true, out_tree);
 }
 
 typedef struct {

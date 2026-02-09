@@ -9,7 +9,10 @@
 - Modernised LR(1) and LALR(1) construction written in portable C11.
 - Predictable performance via dynamic data structures instead of fixed-size arrays.
 - First/Follow set computation with useful diagnostics for malformed grammars.
-- Straightforward runtime API (`cparseAccept`, `cparse`) that produces parse trees.
+- Typed runtime status codes plus structured parser errors (position, expected
+  terminals, offending lexeme).
+- Parse trees carry source spans (byte offset + line/column) through terminal
+  and nonterminal nodes.
 - Ships with a tiny test suite (`make test`) and a static library build (`libcparse.a`).
 
 ## Getting Started
@@ -44,9 +47,12 @@ static const char *token_names[] = {
 
 int main(void) {
   clexLexer *lexer = clexInit();
-  clexRegisterKind(lexer, "return", TOK_RETURN);
-  clexRegisterKind(lexer, "[a-zA-Z_]([a-zA-Z_]|[0-9])*", TOK_IDENTIFIER);
-  clexRegisterKind(lexer, ";", TOK_SEMICOLON);
+  if (clexRegisterKind(lexer, "return", TOK_RETURN) != CLEX_STATUS_OK ||
+      clexRegisterKind(lexer, "[a-zA-Z_]([a-zA-Z_]|[0-9])*", TOK_IDENTIFIER) !=
+          CLEX_STATUS_OK ||
+      clexRegisterKind(lexer, ";", TOK_SEMICOLON) != CLEX_STATUS_OK) {
+    return 1;
+  }
 
   const char *grammar_src =
       "S -> A IDENTIFIER SEMICOL\n"
@@ -57,10 +63,15 @@ int main(void) {
       cparseCreateLALR1Parser(grammar, lexer, token_names,
                               sizeof(token_names) / sizeof(token_names[0]));
 
-  if (cparseAccept(parser, "return answer;")) {
-    ParseTreeNode *root = cparse(parser, "return answer;");
-    /* ... consume parse tree ... */
+  if (cparseAccept(parser, "return answer;") == CPARSE_STATUS_OK) {
+    ParseTreeNode *root = NULL;
+    if (cparse(parser, "return answer;", &root) == CPARSE_STATUS_OK) {
+      /* ... consume parse tree ... */
+    }
     cparseFreeParseTree(root);
+  } else {
+    const cparseError *err = cparseGetLastError(parser);
+    /* inspect err->position, err->expected_tokens, err->offending_lexeme */
   }
 
   cparseFreeParser(parser);
@@ -77,13 +88,18 @@ int main(void) {
 | `Grammar *cparseGrammar(const char *grammar_source)` | Parse a grammar description into an internal representation. |
 | `LR1Parser *cparseCreateLR1Parser(Grammar *, clexLexer *, const char *const *token_names, size_t token_name_count)` | Build an LR(1) parser (the lexer remains owned by the caller). |
 | `LALR1Parser *cparseCreateLALR1Parser(Grammar *, clexLexer *, const char *const *token_names, size_t token_name_count)` | Build an LALR(1) parser by merging LR(1) states (caller retains lexer ownership). |
-| `bool cparseAccept(LR1Parser *, const char *input)` | Check whether the input belongs to the grammar. |
-| `ParseTreeNode *cparse(LR1Parser *, const char *input)` | Parse input and return the parse tree (or `NULL` on failure). |
+| `cparseStatus cparseAccept(LR1Parser *, const char *input)` | Validate input. Returns `CPARSE_STATUS_OK` on success. |
+| `cparseStatus cparse(LR1Parser *, const char *input, ParseTreeNode **out_tree)` | Parse input and write the tree to `out_tree` on success. |
+| `const cparseError *cparseGetLastError(const LR1Parser *)` | Retrieve structured parser error details after a non-OK status. |
 | `void cparseFreeParseTree(ParseTreeNode *)` | Recursively release a parse tree allocated by `cparse`. |
 | `void cparseFreeParser(LR1Parser *)` | Release parser state (works for LALR parsers as well). |
 | `void cparseFreeGrammar(Grammar *)` | Release grammar data structures. |
 
-A parse tree node stores the grammar symbol in `value`, the matched token (for terminals) in `token`, and its children in `children`.
+A parse tree node stores:
+- the grammar symbol in `value`
+- the matched token (for terminals) in `token` (including source span)
+- an aggregate source span for the node in `span`
+- child nodes in `children`
 
 ## Building
 
